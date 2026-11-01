@@ -35,7 +35,9 @@ create table if not exists watch_picks (
   seasons integer,
   imdb numeric(3, 1),
   rt integer check (rt between 0 and 100),
-  service text not null check (service in ('prime', 'plex')),
+  -- prime: included with Prime; plex: on the shared Plex server; shudder: the
+  -- Shudder channel on Prime, while it lasts.
+  service text not null check (service in ('prime', 'plex', 'shudder')),
   link text,
   poster text,
   moods text[] not null default '{}',

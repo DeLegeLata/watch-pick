@@ -4,8 +4,10 @@
 
   let { pick, onreject }: { pick: Pick; onreject: (p: Pick) => void } = $props();
 
-  const service = $derived(pick.service === 'prime' ? 'Prime Video' : 'Free on Plex');
-  const open = $derived(pick.service === 'prime' ? 'Open in Prime' : 'Watch on Plex');
+  const SERVICE = { prime: 'Prime Video', plex: 'On Plex', shudder: 'Shudder on Prime' };
+  const OPEN = { prime: 'Open in Prime', plex: 'Open in Plex', shudder: 'Open in Prime' };
+  const service = $derived(SERVICE[pick.service]);
+  const open = $derived(OPEN[pick.service]);
   const meta = $derived([runtimeLabel(pick), ratingLabel(pick)].filter(Boolean).join(' · '));
   let posterFailed = $state(false);
 </script>

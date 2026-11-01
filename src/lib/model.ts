@@ -16,7 +16,7 @@ export interface Pick {
   seasons: number | null;
   imdb: number | null;
   rt: number | null;
-  service: 'prime' | 'plex';
+  service: 'prime' | 'plex' | 'shudder';
   link: string | null;
   poster: string | null;
   moods: Mood[];

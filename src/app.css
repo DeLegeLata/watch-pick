@@ -9,6 +9,7 @@
   --accent-soft: #f3e4e6;
   --prime: #1a6fb5;
   --plex: #b57a00;
+  --shudder: #b3261e;
   --warn: #9a5b0e;
   --tap: 48px;
   color-scheme: light dark;
@@ -26,6 +27,7 @@
     --accent-soft: #3a2328;
     --prime: #6fb2ea;
     --plex: #e5b04a;
+    --shudder: #f07b72;
     --warn: #d99a45;
   }
 }
@@ -238,6 +240,10 @@ button:disabled {
 
 .badge[data-service='plex'] {
   color: var(--plex);
+}
+
+.badge[data-service='shudder'] {
+  color: var(--shudder);
 }
 
 .actions {

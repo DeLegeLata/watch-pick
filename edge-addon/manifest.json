@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Prime Only",
+  "version": "1.0.0",
+  "description": "Greys out Prime Video titles you would have to pay extra for, so only what you already have stands out.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.primevideo.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "128": "icon-128.png" }
+}

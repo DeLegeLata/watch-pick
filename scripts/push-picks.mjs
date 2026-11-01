@@ -26,7 +26,7 @@ picks.forEach((p, i) => {
     if (p[f] == null || p[f] === '') problems.push(`${at}: missing ${f}`);
   if (!SLOTS.includes(p.slot)) problems.push(`${at}: slot must be one of ${SLOTS.join(', ')}`);
   if (!['movie', 'series'].includes(p.kind)) problems.push(`${at}: kind must be movie or series`);
-  if (!['prime', 'plex'].includes(p.service)) problems.push(`${at}: service must be prime or plex`);
+  if (!['prime', 'plex', 'shudder'].includes(p.service)) problems.push(`${at}: service must be prime, plex or shudder`);
   if (!(Number.isInteger(p.minutes) && p.minutes > 0)) problems.push(`${at}: minutes must be a whole number above 0`);
   if (p.rt != null && !(p.rt >= 0 && p.rt <= 100)) problems.push(`${at}: rt is a percentage`);
   for (const m of p.moods ?? []) if (!MOODS.includes(m)) problems.push(`${at}: unknown mood ${m}`);
