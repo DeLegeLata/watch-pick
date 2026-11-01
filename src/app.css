@@ -343,3 +343,16 @@ footer {
   margin-top: 24px;
   text-align: center;
 }
+
+/* Show three others / Shuffle */
+.more {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.back {
+  display: block;
+  margin: 8px auto 0;
+}

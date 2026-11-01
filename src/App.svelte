@@ -31,6 +31,8 @@
   let windowIndex = $state(Number(saved('watch-pick:window', '1')));
   let mood = $state<Mood | 'any'>(saved('watch-pick:mood', 'any') as Mood | 'any');
   let page = $state(0);
+  // 0 is the refresh's own ranking; any other value is a shuffle.
+  let seed = $state(0);
   let now = $state(new Date());
 
   $effect(() => {
@@ -44,7 +46,7 @@
 
   const minutes = $derived(WINDOWS[windowIndex]?.minutes ?? 90);
   const hidden = $derived(hiddenKeys(snap?.feedback ?? [], now));
-  const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page));
+  const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page, seed));
   const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 10 * 86_400_000 : false);
   const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
@@ -162,7 +164,13 @@
         <p class="muted small">Only a few {moodLabel} picks this week, so others fill in.</p>
       {/if}
       {#if tonight.more > 0}
-        <button class="ghost wide" onclick={() => page++}>Show three others</button>
+        <div class="more">
+          <button class="ghost" onclick={() => page++}>Show three others</button>
+          <button class="ghost" onclick={() => ((seed = 1 + Math.floor(Math.random() * 2 ** 30)), (page = 0))}>Shuffle</button>
+        </div>
+        {#if seed}
+          <button class="link back" onclick={() => ((seed = 0), (page = 0))}>Back to the top picks</button>
+        {/if}
       {/if}
     {/if}
 

@@ -28,5 +28,20 @@ export const demoPicks: Pick[] = [
     episodes: 14, seasons: 2, imdb: 7.5, rt: 100, service: 'prime', link: prime('Deadloch'),
     poster: 'https://image.tmdb.org/t/p/w342/7rI7T4AfSzOx0Rqw73AusyIpeXf.jpg', moods: ['laugh', 'mystery'],
     why: 'Killing Eve meets Fargo: a female-led murder mystery that is also very funny.', rank: 1
+  },
+  {
+    key: 'ballard-2025', slot: 'safe', title: 'Ballard', year: 2025, kind: 'series', minutes: 45, episodes: 10,
+    seasons: null, imdb: 7.5, rt: 100, service: 'prime', link: prime('Ballard'), poster: null, moods: ['mystery'],
+    why: 'A Bosch spin-off: an LAPD cold-case unit.', rank: 2
+  },
+  {
+    key: 'my-old-ass-2024', slot: 'new', title: 'My Old Ass', year: 2024, kind: 'movie', minutes: 89, episodes: null,
+    seasons: null, imdb: 6.9, rt: 90, service: 'prime', link: prime('My Old Ass'), poster: null, moods: ['laugh', 'cozy'],
+    why: 'Funny, sweet coming-of-age with Aubrey Plaza.', rank: 2
+  },
+  {
+    key: 'heat-1995', slot: 'new', title: 'Heat', year: 1995, kind: 'movie', minutes: 170, episodes: null,
+    seasons: null, imdb: 8.3, rt: 88, service: 'plex', link: null, poster: null, moods: ['tense'],
+    why: 'Sample of a pick from the shared Plex server.', rank: 3
   }
 ];

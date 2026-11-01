@@ -6,13 +6,14 @@ installed web app: <https://delegelata.github.io/watch-pick/>.
 
 - **The phones** show tonight's picks. You choose how long you have (45 min,
   1½ h, 2 h +) and a mood, and get a "pick up where you left off" card plus a
-  safe bet, a watchlist pick and something new. **Not for us…** is the only
+  safe bet, a watchlist pick and something new. **Show three others** and
+  **Shuffle** deal more from the week's list. **Not for us…** is the only
   thing the phones write: not for us, not for me, we've seen it, or not
   tonight. Either phone's tap hides the title on both.
 - **The weekly refresh** runs on the home PC as a scheduled Claude task, every
   Friday afternoon. Through Claude in Chrome on the signed-in Edge, it reads
   the new Prime watch history, Continue Watching and the watchlist. It reads
-  the week's taps, picks 12–18 titles from the taste profile in
+  the week's taps, picks about 30 titles from the taste profile in
   `Documents\General Issues\Watching`, and checks each one for availability
   in Canada. It then posts them with `npm run push`. No Amazon password or
   cookie is stored anywhere. The steps are in the `/watch-pick` skill

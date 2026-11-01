@@ -89,6 +89,28 @@ describe('chooseTonight', () => {
     expect(p2.cards.map((c) => c.title)).toEqual(['s2', 'long']);
   });
 
+  const many = (['safe', 'watchlist', 'new'] as const).flatMap((slot) =>
+    [1, 2, 3, 4].map((rank) => pick({ title: `${slot}${rank}`, slot, rank }))
+  );
+  const every = (seed: number) =>
+    [0, 1, 2, 3].flatMap((p) => chooseTonight(many, new Set(), 90, 'any', p, seed).cards.map((c) => c.title)).sort();
+
+  it('shuffles the same way for the same seed, and still deals every pick once', () => {
+    const a = chooseTonight(many, new Set(), 90, 'any', 0, 42).cards;
+    expect(chooseTonight(many, new Set(), 90, 'any', 0, 42).cards).toEqual(a);
+    expect(every(42)).toEqual(every(0));
+    expect(new Set(every(42)).size).toBe(12);
+  });
+
+  it('gives a different first three for some shuffle, and keeps a mix of slots', () => {
+    const ranked = chooseTonight(many, new Set(), 90, 'any').cards.map((c) => c.title);
+    expect(ranked).toEqual(['safe1', 'watchlist1', 'new1']);
+    const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
+    const firsts = seeds.map((s) => chooseTonight(many, new Set(), 90, 'any', 0, s).cards);
+    expect(firsts.some((cards) => cards.map((c) => c.title).join() !== ranked.join())).toBe(true);
+    for (const cards of firsts) expect(cards.map((c) => c.slot)).toEqual(['safe', 'watchlist', 'new']);
+  });
+
   it('drops a resume card that does not fit or match the mood', () => {
     expect(chooseTonight(picks, new Set(), 45, 'any').resume?.title).toBe('resume');
     expect(chooseTonight(picks, new Set(), 90, 'laugh').resume).toBeNull();

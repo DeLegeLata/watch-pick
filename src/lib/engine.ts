@@ -41,17 +41,29 @@ export interface Tonight {
 
 const ORDER: Slot[] = ['safe', 'watchlist', 'new'];
 
+/** A small seeded random generator (mulberry32), so a shuffle holds still while you look at it. */
+function seeded(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /**
  * Tonight's resume card and three cards. Each card prefers its own slot (safe
  * bet, watchlist, something new); mood matches come first; `page` cycles to
- * the next three.
+ * the next three. A non-zero `seed` shuffles each slot instead of using the
+ * refresh's ranking; the resume card always stays the best-ranked.
  */
 export function chooseTonight(
   picks: Pick[],
   hidden: Set<string>,
   windowMinutes: number,
   mood: Mood | 'any',
-  page = 0
+  page = 0,
+  seed = 0
 ): Tonight {
   const open = picks.filter((p) => !hidden.has(p.key) && fits(p, windowMinutes));
   const byRank = (a: Pick, b: Pick) => a.rank - b.rank;
@@ -65,8 +77,18 @@ export function chooseTonight(
 
   // Deal the mood matches round-robin by slot, so each set of three mixes the
   // slots, then the rest after them.
+  const order = (list: Pick[], salt: number) => {
+    const out = [...list].sort(byRank);
+    if (!seed) return out;
+    const rand = seeded(seed + salt * 7919);
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
   const deal = (list: Pick[]) => {
-    const queues = ORDER.map((s) => list.filter((p) => p.slot === s).sort(byRank));
+    const queues = ORDER.map((s, i) => order(list.filter((p) => p.slot === s), i));
     const out: Pick[] = [];
     while (queues.some((q) => q.length)) for (const q of queues) if (q.length) out.push(q.shift()!);
     return out;
