@@ -14,8 +14,11 @@ export default defineConfig({
         name: 'What to Watch',
         short_name: 'Watch',
         description: 'Three picks for tonight that we will both like, from Prime Video and Plex',
-        start_url: '.',
-        scope: '.',
+        // Absolute and with its own id: the sleep app lives on the same
+        // origin, and a phone must not take this for the same app.
+        id: '/watch-pick/',
+        start_url: '/watch-pick/',
+        scope: '/watch-pick/',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#f6f3ef',
