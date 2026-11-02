@@ -12,7 +12,8 @@ installed web app: <https://delegelata.github.io/watch-pick/>.
   we've seen it (with "how was it?"), or not tonight; on a resume card, also
   "someone else watched it" for progress that wasn't ours on a shared account.
   Either phone's tap hides the title on both, and a "seen" from one phone asks
-  the other person for their rating too.
+  the other person for their rating too. The refresh also sends a "How was
+  it?" card for anything it sees we've watched lately.
 - **The daily refresh** runs on the home PC as a scheduled Claude task, every
   afternoon. Through Claude in Chrome on the signed-in Edge, it reads the
   day's taps and ratings, replaces the picks that were tapped away (with

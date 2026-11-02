@@ -1,6 +1,7 @@
 <script lang="ts">
   // Asks this person how a title they've seen was. A "We've seen it" tap on
-  // either phone puts the title here on both, since each rates for themselves.
+  // either phone puts the title here on both, since each rates for themselves,
+  // and so does anything the refresh saw watched on Prime or the shared Plex.
   import { RATINGS, type Unrated } from '../model';
 
   let { items, onrate }: { items: Unrated[]; onrate: (item: Unrated, rating: number) => void } = $props();
@@ -12,6 +13,7 @@
   <section class="card rate" aria-label="Rate what you've seen">
     <p class="slot">How was it?{items.length > 1 ? ` · 1 of ${items.length}` : ''}</p>
     <h3>{item.title}</h3>
+    {#if item.why}<p class="muted small">{item.why}</p>{/if}
     <div class="rate-buttons">
       {#each RATINGS as r (r.value)}
         <button onclick={() => onrate(item, r.value)}>{r.label}</button>

@@ -16,7 +16,8 @@ const doc = JSON.parse(readFileSync(file, 'utf8'));
 const picks = Array.isArray(doc) ? doc : doc.picks;
 const note = Array.isArray(doc) ? null : (doc.note ?? null);
 
-const SLOTS = ['resume', 'safe', 'watchlist', 'new'];
+// 'rate' rows aren't picks: the phones ask "How was it?" about them.
+const SLOTS = ['resume', 'safe', 'watchlist', 'new', 'rate'];
 const MOODS = ['laugh', 'tense', 'mystery', 'cozy'];
 const problems = [];
 const keys = new Set();
@@ -39,10 +40,24 @@ if (problems.length) {
   process.exit(1);
 }
 
-const bySlot = SLOTS.map((s) => `${s} ${picks.filter((p) => p.slot === s).length}`).join(', ');
+const bySlot = (list) =>
+  SLOTS.map((s) => [s, list.filter((p) => p.slot === s).length])
+    .filter(([, n]) => n)
+    .map(([s, n]) => `${s} ${n}`)
+    .join(', ');
 if (dry) {
-  console.log(`OK, not sent (--dry): ${picks.length} picks (${bySlot}).`);
+  console.log(`OK, not sent (--dry): ${picks.length} picks (${bySlot(picks)}).`);
 } else {
-  const added = await rpc('watch_ingest', { p_picks: picks, p_note: note });
-  console.log(`Sent ${added} picks (${bySlot}).`);
+  let sent = picks;
+  let added;
+  try {
+    added = await rpc('watch_ingest', { p_picks: sent, p_note: note });
+  } catch (e) {
+    // A database that hasn't had the 2026-11-02 watch.sql yet refuses 'rate' rows; send the picks without them.
+    if (!/watch_picks_slot_check/.test(String(e.message)) || !picks.some((p) => p.slot === 'rate')) throw e;
+    sent = picks.filter((p) => p.slot !== 'rate');
+    added = await rpc('watch_ingest', { p_picks: sent, p_note: note });
+    console.warn('warning: the database refused the "How was it?" rows (run supabase/watch.sql); sent the picks without them.');
+  }
+  console.log(`Sent ${added} picks (${bySlot(sent)}).`);
 }

@@ -62,7 +62,7 @@
   const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page, seed));
   const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 3 * 86_400_000 : false);
   const me = $derived(demo ? 'demo' : (session?.user.id ?? ''));
-  const unrated = $derived(toRate(snap?.feedback ?? [], me));
+  const unrated = $derived(toRate(snap?.feedback ?? [], me, snap?.picks ?? []));
   const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
 

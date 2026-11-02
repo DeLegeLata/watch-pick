@@ -31,17 +31,20 @@ export function hiddenKeys(feedback: Feedback[], now: Date): Set<string> {
 }
 
 /**
- * Titles either of them marked seen that `me` hasn't rated yet, oldest first.
- * A "seen" tap from one phone asks both people, since each rates for
- * themselves.
+ * Titles `me` hasn't rated yet: first anything either of them marked seen
+ * (a "seen" tap from one phone asks both people, since each rates for
+ * themselves), then what the refresh saw them watch (the 'rate' slot).
  */
-export function toRate(feedback: Feedback[], me: string): Unrated[] {
+export function toRate(feedback: Feedback[], me: string, picks: Pick[] = []): Unrated[] {
   const rated = new Set(
     feedback.filter((f) => f.reason === 'seen' && f.user_id === me && f.rating != null).map((f) => f.key)
   );
   const out = new Map<string, Unrated>();
   for (const f of feedback) {
     if (f.reason === 'seen' && !rated.has(f.key) && !out.has(f.key)) out.set(f.key, { key: f.key, title: f.title });
+  }
+  for (const p of picks) {
+    if (p.slot === 'rate' && !rated.has(p.key) && !out.has(p.key)) out.set(p.key, { key: p.key, title: p.title, why: p.why });
   }
   return [...out.values()];
 }

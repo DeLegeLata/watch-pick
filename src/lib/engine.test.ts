@@ -74,6 +74,18 @@ describe('toRate', () => {
   it('counts "didn\'t watch it" (0) as answered', () => {
     expect(toRate([seen('a', 'stu', 3), seen('a', 'sarah', 0)], 'sarah')).toEqual([]);
   });
+  it('also asks about what the refresh saw watched, after the seen taps', () => {
+    const watched = [pick({ title: 'w', slot: 'rate', why: 'Finished on Prime' }), pick({ title: 's', slot: 'safe' })];
+    expect(toRate([seen('b', 'stu')], 'sarah', watched)).toEqual([
+      { key: 'b', title: 'b' },
+      { key: 'w', title: 'w', why: 'Finished on Prime' }
+    ]);
+    expect(toRate([seen('w', 'sarah', 4)], 'sarah', watched)).toEqual([]);
+  });
+  it('never deals a rate entry as a pick', () => {
+    const t = chooseTonight([pick({ title: 'w', slot: 'rate' })], new Set(), Infinity, 'any');
+    expect(t.cards).toEqual([]);
+  });
 });
 
 describe('daySeed', () => {

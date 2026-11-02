@@ -25,7 +25,7 @@ create table if not exists watch_picks (
   run_id uuid not null references watch_runs (id) on delete cascade,
   -- Stable across runs, so feedback on a title outlives the run it came in.
   key text not null,
-  slot text not null check (slot in ('resume', 'safe', 'watchlist', 'new')),
+  slot text not null,
   title text not null,
   year integer,
   kind text not null check (kind in ('movie', 'series')),
@@ -46,6 +46,12 @@ create table if not exists watch_picks (
 );
 
 create index if not exists watch_picks_run on watch_picks (run_id, rank);
+
+-- rate (added 2026-11-02): not a pick but something the refresh saw them
+-- watch, which the phones ask "How was it?" about.
+alter table watch_picks drop constraint if exists watch_picks_slot_check;
+alter table watch_picks add constraint watch_picks_slot_check
+check (slot in ('resume', 'safe', 'watchlist', 'new', 'rate'));
 
 create table if not exists watch_feedback (
   id uuid primary key default gen_random_uuid(),

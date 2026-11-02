@@ -7,6 +7,8 @@
 // - kind: movie or series. moods: comma-separated. Empty fields are null.
 // - plexKey: the shared server's ratingKey, for service plex (it builds the link).
 // - poster: t:<file> for TMDB, m:<path> for Plex's metadata-static, or a full URL.
+// - slot rate: something they watched, for the phones' "How was it?" card. Its
+//   why says where it was seen; minutes, ratings, poster and moods can be blank.
 // A row whose key is already in picks.json replaces that pick. --drop removes
 // picks by key; --fresh starts from an empty list instead of the current one.
 // Ranks are renumbered by order within each slot. Run push --dry afterwards.
@@ -57,7 +59,8 @@ const rows = readFileSync(rowsPath, 'utf8')
       title,
       year: num(year),
       kind,
-      minutes: num(minutes),
+      // The database wants a runtime; a rate row never shows one.
+      minutes: num(minutes) ?? (slot === 'rate' ? 1 : null),
       episodes: num(episodes),
       seasons: num(seasons),
       imdb: num(imdb),

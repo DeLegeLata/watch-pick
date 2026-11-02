@@ -1,6 +1,7 @@
 // The shapes the app reads from Supabase (and the demo data uses).
 
-export type Slot = 'resume' | 'safe' | 'watchlist' | 'new';
+/** 'rate' is not a pick: it's something the refresh saw them watch, to ask "How was it?". */
+export type Slot = 'resume' | 'safe' | 'watchlist' | 'new' | 'rate';
 export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy';
 export type Reason = 'seen' | 'not_me' | 'not_us' | 'not_tonight' | 'someone_else';
 
@@ -35,10 +36,12 @@ export interface Feedback {
   created_at: string;
 }
 
-/** A title someone marked seen that this person hasn't rated. */
+/** A title someone marked seen, or the refresh saw watched, that this person hasn't rated. */
 export interface Unrated {
   key: string;
   title: string;
+  /** Where the refresh saw it, e.g. "Finished on Prime, Oct 31". */
+  why?: string;
 }
 
 export interface Run {
@@ -88,5 +91,6 @@ export const SLOT_LABEL: Record<Slot, string> = {
   resume: 'Pick up where you left off',
   safe: 'Safe bet',
   watchlist: 'From your watchlist',
-  new: 'Something new'
+  new: 'Something new',
+  rate: 'How was it?'
 };
