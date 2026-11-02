@@ -2,7 +2,7 @@
 // "not for us" taps. The last snapshot is kept in localStorage so the app
 // opens with no signal.
 import { supabase } from './supabase';
-import type { Feedback, Pick, Reason, Run } from './model';
+import type { Feedback, Pick, Reason, Run, Unrated } from './model';
 
 export interface Snapshot {
   household: string | null;
@@ -44,7 +44,8 @@ export async function load(): Promise<Snapshot> {
   const [member, runs, feedback] = await Promise.all([
     sb.from('members').select('household_id').limit(1).maybeSingle(),
     sb.from('watch_runs').select('id, ran_at, note').order('ran_at', { ascending: false }).limit(1),
-    sb.from('watch_feedback').select('id, user_id, key, title, reason, created_at').order('created_at')
+    // '*' rather than a column list, so a database without the rating column still loads.
+    sb.from('watch_feedback').select('*').order('created_at')
   ]);
   for (const r of [member, runs, feedback]) if (r.error) throw r.error;
 
@@ -66,11 +67,19 @@ export async function load(): Promise<Snapshot> {
   return snap;
 }
 
-export async function addFeedback(household: string, pick: Pick, reason: Reason): Promise<Feedback> {
+export async function addFeedback(
+  household: string,
+  item: Pick | Unrated,
+  reason: Reason,
+  rating: number | null = null
+): Promise<Feedback> {
+  // rating is left out when there is none, so a database without that column still takes the tap.
+  const row: Record<string, unknown> = { household_id: household, key: item.key, title: item.title, reason };
+  if (rating != null) row.rating = rating;
   const { data, error } = await supabase!
     .from('watch_feedback')
-    .insert({ household_id: household, key: pick.key, title: pick.title, reason })
-    .select('id, user_id, key, title, reason, created_at')
+    .insert(row)
+    .select('*')
     .single();
   if (error) throw error;
   return data as Feedback;

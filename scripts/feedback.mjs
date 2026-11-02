@@ -10,6 +10,9 @@ const rows = await rpc('watch_feedback_since', { p_since: since.toISOString() })
 if (!rows.length) {
   console.log(`No feedback since ${since.toISOString().slice(0, 10)}.`);
 } else {
-  for (const r of rows)
-    console.log(`${r.created_at.slice(0, 10)} | ${r.who ?? '?'} | ${r.reason} | ${r.title} | ${r.key}`);
+  const RATED = ['didn’t watch it', 'didn’t like it', 'meh', 'liked it', 'loved it'];
+  for (const r of rows) {
+    const verdict = r.reason === 'seen' && r.rating != null ? ` (${RATED[r.rating]})` : '';
+    console.log(`${r.created_at.slice(0, 10)} | ${r.who ?? '?'} | ${r.reason}${verdict} | ${r.title} | ${r.key}`);
+  }
 }

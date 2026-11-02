@@ -344,6 +344,18 @@ footer {
   text-align: center;
 }
 
+/* How was it? */
+.rate h3 {
+  margin: 4px 0 12px;
+}
+
+.rate-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 /* Show three others / Shuffle */
 .more {
   display: grid;

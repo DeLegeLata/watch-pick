@@ -2,12 +2,23 @@
   import { onMount } from 'svelte';
   import type { Session } from '@supabase/supabase-js';
   import PickCard from './lib/components/PickCard.svelte';
+  import RateCard from './lib/components/RateCard.svelte';
   import ReasonSheet from './lib/components/ReasonSheet.svelte';
   import SignIn from './lib/components/SignIn.svelte';
   import { addFeedback, cached, forget, load, undoFeedback, type Snapshot } from './lib/data';
   import { demoPicks, demoRun } from './lib/demo';
-  import { ago, chooseTonight, hiddenKeys } from './lib/engine';
-  import { MOODS, REASONS, WINDOWS, type Feedback, type Mood, type Pick, type Reason } from './lib/model';
+  import { ago, chooseTonight, daySeed, hiddenKeys, toRate } from './lib/engine';
+  import {
+    MOODS,
+    RATINGS,
+    REASONS,
+    WINDOWS,
+    type Feedback,
+    type Mood,
+    type Pick,
+    type Reason,
+    type Unrated
+  } from './lib/model';
   import { configured, signOut, supabase } from './lib/supabase';
 
   const demo = new URLSearchParams(location.search).has('demo');
@@ -31,9 +42,11 @@
   let windowIndex = $state(Number(saved('watch-pick:window', '1')));
   let mood = $state<Mood | 'any'>(saved('watch-pick:mood', 'any') as Mood | 'any');
   let page = $state(0);
-  // 0 is the refresh's own ranking; any other value is a shuffle.
-  let seed = $state(0);
+  // The order changes each day by itself; Shuffle swaps in a random one until
+  // "Back to today's picks".
+  let shuffled = $state(0);
   let now = $state(new Date());
+  const seed = $derived(shuffled || daySeed(now));
 
   $effect(() => {
     try {
@@ -47,7 +60,9 @@
   const minutes = $derived(WINDOWS[windowIndex]?.minutes ?? 90);
   const hidden = $derived(hiddenKeys(snap?.feedback ?? [], now));
   const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page, seed));
-  const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 10 * 86_400_000 : false);
+  const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 3 * 86_400_000 : false);
+  const me = $derived(demo ? 'demo' : (session?.user.id ?? ''));
+  const unrated = $derived(toRate(snap?.feedback ?? [], me));
   const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
 
@@ -91,20 +106,30 @@
     toastTimer = setTimeout(() => (toast = null), 6000);
   }
 
-  async function reject(pick: Pick, reason: Reason) {
-    rejecting = null;
-    if (!snap) return;
+  async function save(item: Pick | Unrated, reason: Reason, rating: number | null): Promise<Feedback | null> {
+    if (!snap) return null;
     let row: Feedback;
     try {
       row = demo
-        ? { id: crypto.randomUUID(), user_id: 'demo', key: pick.key, title: pick.title, reason, created_at: new Date().toISOString() }
-        : await addFeedback(snap.household!, pick, reason);
+        ? { id: crypto.randomUUID(), user_id: 'demo', key: item.key, title: item.title, reason, rating, created_at: new Date().toISOString() }
+        : await addFeedback(snap.household!, item, reason, rating);
     } catch (e) {
       say(`Couldn't save that: ${e instanceof Error ? e.message : e}`);
-      return;
+      return null;
     }
     snap.feedback = [...snap.feedback, row];
-    const label = REASONS.find((r) => r.id === reason)?.label ?? 'Hidden';
+    return row;
+  }
+
+  async function rate(item: Unrated, rating: number) {
+    if (await save(item, 'seen', rating)) say(`Thanks: ${item.title} is rated.`);
+  }
+
+  async function reject(pick: Pick, reason: Reason, rating: number | null) {
+    rejecting = null;
+    const row = await save(pick, reason, rating);
+    if (!row || !snap) return;
+    const label = (rating ? RATINGS.find((r) => r.value === rating)?.label : REASONS.find((r) => r.id === reason)?.label) ?? 'Hidden';
     say(`${label}: ${pick.title} is hidden.`, async () => {
       if (!snap) return;
       if (!demo) await undoFeedback(row.id).catch(() => say("Couldn't undo; try again with a signal."));
@@ -147,7 +172,9 @@
     </section>
 
     {#if error}<p class="flag">{error}</p>{/if}
-    {#if stale}<p class="flag">These picks are over 10 days old: the weekly refresh on the home PC hasn't run.</p>{/if}
+    {#if stale}<p class="flag">These picks are over 3 days old: the daily refresh on the home PC hasn't run.</p>{/if}
+
+    <RateCard items={unrated} onrate={rate} />
 
     {#if !snap?.run}
       <section class="card"><p>No picks yet. They arrive after the first weekly refresh on the home PC.</p></section>
@@ -166,10 +193,10 @@
       {#if tonight.more > 0}
         <div class="more">
           <button class="ghost" onclick={() => page++}>Show three others</button>
-          <button class="ghost" onclick={() => ((seed = 1 + Math.floor(Math.random() * 2 ** 30)), (page = 0))}>Shuffle</button>
+          <button class="ghost" onclick={() => ((shuffled = 1 + Math.floor(Math.random() * 2 ** 30)), (page = 0))}>Shuffle</button>
         </div>
-        {#if seed}
-          <button class="link back" onclick={() => ((seed = 0), (page = 0))}>Back to the top picks</button>
+        {#if shuffled}
+          <button class="link back" onclick={() => ((shuffled = 0), (page = 0))}>Back to today's picks</button>
         {/if}
       {/if}
     {/if}

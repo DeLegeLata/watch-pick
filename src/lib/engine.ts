@@ -1,7 +1,7 @@
 // Chooses tonight's cards from the week's picks. Pure functions, tested in
 // engine.test.ts.
 
-import type { Feedback, Mood, Pick, Slot } from './model';
+import type { Feedback, Mood, Pick, Slot, Unrated } from './model';
 
 /** A movie may run 10 minutes past the window; nobody minds the credits. */
 export const MOVIE_GRACE = 10;
@@ -30,6 +30,29 @@ export function hiddenKeys(feedback: Feedback[], now: Date): Set<string> {
   return hidden;
 }
 
+/**
+ * Titles either of them marked seen that `me` hasn't rated yet, oldest first.
+ * A "seen" tap from one phone asks both people, since each rates for
+ * themselves.
+ */
+export function toRate(feedback: Feedback[], me: string): Unrated[] {
+  const rated = new Set(
+    feedback.filter((f) => f.reason === 'seen' && f.user_id === me && f.rating != null).map((f) => f.key)
+  );
+  const out = new Map<string, Unrated>();
+  for (const f of feedback) {
+    if (f.reason === 'seen' && !rated.has(f.key) && !out.has(f.key)) out.set(f.key, { key: f.key, title: f.title });
+  }
+  return [...out.values()];
+}
+
+/** A non-zero seed that changes at local midnight, so the app deals a fresh three each day. */
+export function daySeed(now: Date): number {
+  let h = 2166136261;
+  for (const ch of localDate(now)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return h >>> 0 || 1;
+}
+
 export interface Tonight {
   resume: Pick | null;
   cards: Pick[];
@@ -55,7 +78,8 @@ function seeded(seed: number) {
  * Tonight's resume card and three cards. Each card prefers its own slot (safe
  * bet, watchlist, something new); mood matches come first; `page` cycles to
  * the next three. A non-zero `seed` shuffles each slot instead of using the
- * refresh's ranking; the resume card always stays the best-ranked.
+ * refresh's ranking. The resume card goes by rank (the most recently watched
+ * first), and `page` steps through the others.
  */
 export function chooseTonight(
   picks: Pick[],
@@ -69,7 +93,8 @@ export function chooseTonight(
   const byRank = (a: Pick, b: Pick) => a.rank - b.rank;
   const matches = (p: Pick) => mood === 'any' || p.moods.includes(mood);
 
-  const resume = open.filter((p) => p.slot === 'resume').sort(byRank).find(matches) ?? null;
+  const resumes = open.filter((p) => p.slot === 'resume' && matches(p)).sort(byRank);
+  const resume = resumes.length ? resumes[page % resumes.length] : null;
 
   const rest = open.filter((p) => p.slot !== 'resume');
   const good = rest.filter(matches);

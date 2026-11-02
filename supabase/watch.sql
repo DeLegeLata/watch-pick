@@ -4,8 +4,8 @@
 -- accounts sign in. Running it again is harmless, and is how a later version
 -- is applied.
 --
--- The phones only read picks and write "not for us" feedback. New picks
--- arrive once a week from the refresh on the home PC, through
+-- The phones only read picks and write feedback ("not for us", "seen" with a
+-- rating). New picks arrive daily from the refresh on the home PC, through
 -- watch_ingest(), which checks a long random token whose SHA-256 hash is
 -- kept in watch_ingest_keys. The token itself lives only in the PC's
 -- git-ignored .env.local.
@@ -53,11 +53,21 @@ create table if not exists watch_feedback (
   user_id uuid not null default auth.uid () references auth.users (id) on delete cascade,
   key text not null,
   title text not null,
-  reason text not null check (reason in ('seen', 'not_me', 'not_us', 'not_tonight')),
+  reason text not null,
   created_at timestamptz not null default now()
 );
 
 create index if not exists watch_feedback_household on watch_feedback (household_id, created_at);
+
+-- Added 2026-11-02: for 'seen', how this person found it, 1 (didn't like it)
+-- to 4 (loved it); 0 is "didn't watch it"; null is not rated yet.
+alter table watch_feedback add column if not exists rating smallint check (rating between 0 and 4);
+
+-- someone_else (added 2026-11-02): a "pick up where you left off" card whose
+-- progress was someone else's on the shared account, not theirs.
+alter table watch_feedback drop constraint if exists watch_feedback_reason_check;
+alter table watch_feedback add constraint watch_feedback_reason_check
+check (reason in ('seen', 'not_me', 'not_us', 'not_tonight', 'someone_else'));
 
 create table if not exists watch_ingest_keys (
   household_id uuid primary key references households (id) on delete cascade,
@@ -141,13 +151,16 @@ begin
 end;
 $$;
 
--- What the phones said since a given time, for the weekly refresh.
-create or replace function watch_feedback_since (p_token text, p_since timestamptz) returns table (
+-- What the phones said since a given time, for the daily refresh. Dropped
+-- first because adding the rating column changed what it returns.
+drop function if exists watch_feedback_since (text, timestamptz);
+create function watch_feedback_since (p_token text, p_since timestamptz) returns table (
   created_at timestamptz,
   who text,
   key text,
   title text,
-  reason text
+  reason text,
+  rating smallint
 ) language plpgsql stable security definer
 set
   search_path = public, extensions as $$
@@ -158,7 +171,7 @@ begin
     raise exception 'watch_feedback_since: unknown token' using errcode = '28000';
   end if;
   return query
-    select f.created_at, m.display_name, f.key, f.title, f.reason
+    select f.created_at, m.display_name, f.key, f.title, f.reason, f.rating
     from watch_feedback f
     left join members m on m.household_id = f.household_id and m.user_id = f.user_id
     where f.household_id = home and f.created_at >= p_since

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, chooseTonight, fits, hiddenKeys, runtimeLabel } from './engine';
+import { ago, chooseTonight, daySeed, fits, hiddenKeys, runtimeLabel, toRate } from './engine';
 import type { Feedback, Pick } from './model';
 
 const pick = (over: Partial<Pick>): Pick => ({
@@ -59,6 +59,32 @@ describe('hiddenKeys', () => {
   });
 });
 
+describe('toRate', () => {
+  const seen = (key: string, user_id: string, rating: number | null = null): Feedback => ({
+    ...fb(key, 'seen', '2026-11-01T12:00:00Z'),
+    id: `${key}${user_id}${rating}`,
+    user_id,
+    rating
+  });
+  it("asks each person about anything either of them marked seen, until they've rated it", () => {
+    const rows = [seen('a', 'stu', 4), seen('b', 'stu'), fb('c', 'not_me', '2026-11-01T12:00:00Z')];
+    expect(toRate(rows, 'stu').map((u) => u.key)).toEqual(['b']);
+    expect(toRate(rows, 'sarah').map((u) => u.key)).toEqual(['a', 'b']);
+  });
+  it('counts "didn\'t watch it" (0) as answered', () => {
+    expect(toRate([seen('a', 'stu', 3), seen('a', 'sarah', 0)], 'sarah')).toEqual([]);
+  });
+});
+
+describe('daySeed', () => {
+  it('holds for a day and changes the next', () => {
+    const morning = daySeed(new Date(2026, 10, 2, 7, 0));
+    expect(daySeed(new Date(2026, 10, 2, 23, 0))).toBe(morning);
+    expect(daySeed(new Date(2026, 10, 3, 7, 0))).not.toBe(morning);
+    expect(morning).not.toBe(0);
+  });
+});
+
 describe('chooseTonight', () => {
   const picks = [
     pick({ title: 'resume', slot: 'resume', minutes: 48 }),
@@ -109,6 +135,12 @@ describe('chooseTonight', () => {
     const firsts = seeds.map((s) => chooseTonight(many, new Set(), 90, 'any', 0, s).cards);
     expect(firsts.some((cards) => cards.map((c) => c.title).join() !== ranked.join())).toBe(true);
     for (const cards of firsts) expect(cards.map((c) => c.slot)).toEqual(['safe', 'watchlist', 'new']);
+  });
+
+  it('steps through the resume cards with the pages, most recent first', () => {
+    const two = [...picks, pick({ title: 'resume2', slot: 'resume', minutes: 30, rank: 2 })];
+    expect(chooseTonight(two, new Set(), 90, 'any', 0, 7).resume?.title).toBe('resume');
+    expect(chooseTonight(two, new Set(), 90, 'any', 1, 7).resume?.title).toBe('resume2');
   });
 
   it('drops a resume card that does not fit or match the mood', () => {

@@ -2,7 +2,7 @@
 
 export type Slot = 'resume' | 'safe' | 'watchlist' | 'new';
 export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy';
-export type Reason = 'seen' | 'not_me' | 'not_us' | 'not_tonight';
+export type Reason = 'seen' | 'not_me' | 'not_us' | 'not_tonight' | 'someone_else';
 
 export interface Pick {
   key: string;
@@ -30,7 +30,15 @@ export interface Feedback {
   key: string;
   title: string;
   reason: Reason;
+  /** For 'seen': this person's verdict, 1–4 (see RATINGS); 0 is "didn't watch it"; null is not rated yet. */
+  rating?: number | null;
   created_at: string;
+}
+
+/** A title someone marked seen that this person hasn't rated. */
+export interface Unrated {
+  key: string;
+  title: string;
 }
 
 export interface Run {
@@ -54,11 +62,26 @@ export const WINDOWS: { minutes: number; label: string }[] = [
   { minutes: Infinity, label: '2 h +' }
 ];
 
-export const REASONS: { id: Reason; label: string; hint: string }[] = [
+/** `resume` reasons are offered only on "pick up where you left off" cards. */
+export const REASONS: { id: Reason; label: string; hint: string; resume?: boolean }[] = [
+  {
+    id: 'someone_else',
+    label: 'Someone else watched it',
+    hint: "Not us: someone else using the account. We haven't started it.",
+    resume: true
+  },
   { id: 'not_us', label: 'Not for us', hint: 'Neither of us wants this' },
   { id: 'not_me', label: 'Not for me', hint: 'I would not enjoy it' },
   { id: 'seen', label: "We've seen it", hint: 'Already watched it' },
   { id: 'not_tonight', label: 'Not tonight', hint: 'Hide it until tomorrow' }
+];
+
+/** How a seen title was, asked of each of them on their own phone. */
+export const RATINGS: { value: number; label: string }[] = [
+  { value: 4, label: 'Loved it' },
+  { value: 3, label: 'Liked it' },
+  { value: 2, label: 'Meh' },
+  { value: 1, label: "Didn't like it" }
 ];
 
 export const SLOT_LABEL: Record<Slot, string> = {

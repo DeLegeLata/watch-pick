@@ -31,6 +31,6 @@
     {#if pick.link}
       <a class="button primary" href={pick.link} target="_blank" rel="noopener">{open}</a>
     {/if}
-    <button class="ghost" onclick={() => onreject(pick)}>Not for us…</button>
+    <button class="ghost" onclick={() => onreject(pick)}>{pick.slot === 'resume' ? "Wasn't us…" : 'Not for us…'}</button>
   </div>
 </article>

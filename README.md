@@ -6,16 +6,20 @@ installed web app: <https://delegelata.github.io/watch-pick/>.
 
 - **The phones** show tonight's picks. You choose how long you have (45 min,
   1½ h, 2 h +) and a mood, and get a "pick up where you left off" card plus a
-  safe bet, a watchlist pick and something new. **Show three others** and
-  **Shuffle** deal more from the week's list. **Not for us…** is the only
-  thing the phones write: not for us, not for me, we've seen it, or not
-  tonight. Either phone's tap hides the title on both.
-- **The weekly refresh** runs on the home PC as a scheduled Claude task, every
-  Friday afternoon. Through Claude in Chrome on the signed-in Edge, it reads
-  the new Prime watch history, Continue Watching and the watchlist. It reads
-  the week's taps, picks about 30 titles from the taste profile in
-  `Documents\General Issues\Watching`, and checks each one for availability
-  in Canada. It then posts them with `npm run push`. No Amazon password or
+  safe bet, a watchlist pick and something new. The three change each day;
+  **Show three others** and **Shuffle** deal more from the list of about 100.
+  **Not for us…** is the only thing the phones write: not for us, not for me,
+  we've seen it (with "how was it?"), or not tonight; on a resume card, also
+  "someone else watched it" for progress that wasn't ours on a shared account.
+  Either phone's tap hides the title on both, and a "seen" from one phone asks
+  the other person for their rating too.
+- **The daily refresh** runs on the home PC as a scheduled Claude task, every
+  afternoon. Through Claude in Chrome on the signed-in Edge, it reads the
+  day's taps and ratings, replaces the picks that were tapped away (with
+  `scripts/build-picks.mjs`), and checks each new one for availability in
+  Canada; once a week it also rereads the Prime watch history, Continue
+  Watching and the watchlist and rechecks every pick. The taste profile lives
+  in `Documents\General Issues\Watching`. Picks go up with `npm run push`. No Amazon password or
   cookie is stored anywhere. The steps are in the `/watch-pick` skill
   (`~/.claude/skills/watch-pick/SKILL.md`, part B).
 - **The data** lives in the sleep app's Supabase project, behind the same two
