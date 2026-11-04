@@ -1,14 +1,17 @@
 <script lang="ts">
   import { ratingLabel, runtimeLabel } from '../engine';
-  import { SLOT_LABEL, type Pick } from '../model';
+  import { OPEN_LABEL, SERVICE_LABEL, SLOT_LABEL, type Pick } from '../model';
 
-  let { pick, onreject }: { pick: Pick; onreject: (p: Pick) => void } = $props();
+  let {
+    pick,
+    saved = false,
+    onreject,
+    onsave
+  }: { pick: Pick; saved?: boolean; onreject: (p: Pick) => void; onsave?: (p: Pick) => void } = $props();
 
-  const SERVICE = { prime: 'Prime Video', plex: 'On Plex', shudder: 'Shudder on Prime' };
-  const OPEN = { prime: 'Open in Prime', plex: 'Open in Plex', shudder: 'Open in Prime' };
-  const service = $derived(SERVICE[pick.service]);
-  const open = $derived(OPEN[pick.service]);
   const meta = $derived([runtimeLabel(pick), ratingLabel(pick)].filter(Boolean).join(' · '));
+  // A show they're partway through needs no saving for later.
+  const canSave = $derived(!!onsave && pick.slot !== 'resume');
   let posterFailed = $state(false);
 </script>
 
@@ -24,12 +27,21 @@
     <p class="slot">{SLOT_LABEL[pick.slot]}</p>
     <h3>{pick.title}{#if pick.year}<span class="year">{` ${pick.year}`}</span>{/if}</h3>
     <p class="meta">{meta}</p>
-    <p class="badge" data-service={pick.service}>{service}</p>
+    <p class="badge" data-service={pick.service}>{SERVICE_LABEL[pick.service]}</p>
     <p class="why">{pick.why}</p>
   </div>
-  <div class="actions">
+  <div class="actions" class:three={pick.link && canSave}>
     {#if pick.link}
-      <a class="button primary" href={pick.link} target="_blank" rel="noopener">{open}</a>
+      <a class="button primary" href={pick.link} target="_blank" rel="noopener">{OPEN_LABEL[pick.service]}</a>
+    {/if}
+    {#if canSave}
+      <button
+        class="ghost save"
+        class:on={saved}
+        aria-pressed={saved}
+        aria-label={saved ? 'On the watchlist (tap to take it off)' : 'Save to the watchlist'}
+        onclick={() => onsave?.(pick)}>{saved ? '✓ Saved' : 'Save'}</button
+      >
     {/if}
     <button class="ghost" onclick={() => onreject(pick)}>{pick.slot === 'resume' ? "Wasn't us…" : 'Not for us…'}</button>
   </div>

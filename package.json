@@ -12,7 +12,8 @@
     "icons": "node scripts/make-icons.mjs",
     "new-key": "node scripts/new-ingest-key.mjs",
     "push": "node scripts/push-picks.mjs",
-    "feedback": "node scripts/feedback.mjs"
+    "feedback": "node scripts/feedback.mjs",
+    "list": "node scripts/watchlist.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",

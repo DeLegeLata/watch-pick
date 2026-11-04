@@ -4,8 +4,9 @@
 -- accounts sign in. Running it again is harmless, and is how a later version
 -- is applied.
 --
--- The phones only read picks and write feedback ("not for us", "seen" with a
--- rating). New picks arrive daily from the refresh on the home PC, through
+-- The phones read picks, write feedback ("not for us", "seen" with a rating)
+-- and add to the shared watchlist. New picks arrive daily from the refresh on
+-- the home PC, through
 -- watch_ingest(), which checks a long random token whose SHA-256 hash is
 -- kept in watch_ingest_keys. The token itself lives only in the PC's
 -- git-ignored .env.local.
@@ -185,9 +186,165 @@ begin
 end;
 $$;
 
+-- --- The shared watchlist (added 2026-11-03) ---------------------------------
+-- One list for both of them, whatever service a title is on. The phones add
+-- to it (a saved pick, or a typed name) and take titles off it. The refresh
+-- matches typed names, pulls in Prime's and Plex's watchlists, and keeps
+-- where each title can be watched up to date. Nothing is written back to
+-- Prime or Plex.
+
+create table if not exists watch_list (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households (id) on delete cascade,
+  -- The same key as the picks (title words plus year). Null while a typed
+  -- name waits for the refresh to match it.
+  key text,
+  -- What someone typed on a phone, kept after it's matched.
+  typed text,
+  title text not null,
+  year integer,
+  kind text check (kind in ('movie', 'series')),
+  minutes integer check (minutes > 0),
+  episodes integer,
+  seasons integer,
+  imdb numeric(3, 1),
+  rt integer check (rt between 0 and 100),
+  -- Where they can watch it now; null means not on anything they have.
+  service text check (service in ('prime', 'plex', 'shudder')),
+  link text,
+  poster text,
+  -- The refresh's word on it, e.g. "On Netflix" or "Couldn't find this".
+  note text,
+  -- app: added on a phone; prime / plex: pulled in from that watchlist.
+  source text not null default 'app' check (source in ('app', 'prime', 'plex')),
+  added_by uuid default auth.uid () references auth.users (id) on delete set null,
+  added_at timestamptz not null default now(),
+  checked_at timestamptz,
+  -- Taken off the list. The row stays so a removed import isn't pulled in again.
+  removed_at timestamptz,
+  constraint watch_list_key unique (household_id, key)
+);
+
+alter table watch_list enable row level security;
+
+drop policy if exists watch_list_read on watch_list;
+create policy watch_list_read on watch_list for select using (is_member (household_id));
+
+drop policy if exists watch_list_add on watch_list;
+create policy watch_list_add on watch_list for insert
+with
+  check (is_member (household_id) and source = 'app' and added_by = auth.uid ());
+
+drop policy if exists watch_list_take_off on watch_list;
+create policy watch_list_take_off on watch_list for update using (is_member (household_id))
+with
+  check (is_member (household_id));
+
+-- The phones only take titles off and put them back; the refresh fills in the rest.
+revoke update on watch_list from anon, authenticated;
+grant update (removed_at, added_at) on watch_list to authenticated;
+
+-- The whole list, for the refresh.
+create or replace function watch_list_read (p_token text) returns table (
+  id uuid,
+  key text,
+  typed text,
+  title text,
+  year integer,
+  service text,
+  note text,
+  source text,
+  who text,
+  added_at timestamptz,
+  checked_at timestamptz,
+  removed_at timestamptz
+) language plpgsql stable security definer
+set
+  search_path = public, extensions as $$
+declare
+  home uuid := watch_household_for(p_token);
+begin
+  if home is null then
+    raise exception 'watch_list_read: unknown token' using errcode = '28000';
+  end if;
+  return query
+    select l.id, l.key, l.typed, l.title, l.year, l.service, l.note, l.source, m.display_name,
+           l.added_at, l.checked_at, l.removed_at
+    from watch_list l
+    left join members m on m.household_id = l.household_id and m.user_id = l.added_by
+    where l.household_id = home
+    order by l.removed_at nulls first, l.added_at desc;
+end;
+$$;
+
+-- The refresh's changes. Each row of p_rows is one title, by key:
+-- - with an id and a key: a typed name, now matched;
+-- - with an id and no key: a typed name it couldn't match (only note is kept);
+-- - with no id: pulled in from Prime or Plex (source), or rechecked. A title
+--   already on the list keeps its source and stays removed if it was.
+-- p_remove takes titles off by key, e.g. once they've watched them.
+create or replace function watch_list_save (p_token text, p_rows jsonb, p_remove text[] default '{}') returns integer language plpgsql security definer
+set
+  search_path = public, extensions as $$
+declare
+  home uuid := watch_household_for(p_token);
+  r record;
+  other uuid;
+  saved integer := 0;
+begin
+  if home is null then
+    raise exception 'watch_list_save: unknown token' using errcode = '28000';
+  end if;
+
+  for r in
+    select * from jsonb_to_recordset(coalesce(p_rows, '[]')) as x (
+      id uuid, key text, title text, year integer, kind text, minutes integer, episodes integer,
+      seasons integer, imdb numeric, rt integer, service text, link text, poster text, note text,
+      source text
+    )
+  loop
+    if r.id is not null and r.key is null then
+      update watch_list set note = r.note, checked_at = now() where id = r.id and household_id = home;
+      saved := saved + 1;
+      continue;
+    end if;
+
+    if r.id is not null then
+      -- Typed again for a title already on the list: keep that row, and put it
+      -- back if it had been taken off.
+      select l.id into other from watch_list l where l.household_id = home and l.key = r.key and l.id <> r.id;
+      if other is null then
+        update watch_list set key = r.key where id = r.id and household_id = home;
+      else
+        delete from watch_list where id = r.id and household_id = home;
+        update watch_list set removed_at = null where id = other;
+      end if;
+    end if;
+
+    insert into watch_list (household_id, key, title, year, kind, minutes, episodes, seasons, imdb, rt,
+                            service, link, poster, note, source, added_by, checked_at)
+    values (home, r.key, r.title, r.year, r.kind, r.minutes, r.episodes, r.seasons, r.imdb, r.rt,
+            r.service, r.link, r.poster, r.note, coalesce(r.source, 'prime'), null, now())
+    on conflict (household_id, key) do update set
+      title = excluded.title, year = excluded.year, kind = excluded.kind, minutes = excluded.minutes,
+      episodes = excluded.episodes, seasons = excluded.seasons, imdb = excluded.imdb, rt = excluded.rt,
+      service = excluded.service, link = excluded.link, poster = excluded.poster, note = excluded.note,
+      checked_at = now();
+    saved := saved + 1;
+  end loop;
+
+  update watch_list set removed_at = now()
+  where household_id = home and key = any (coalesce(p_remove, '{}')) and removed_at is null;
+
+  return saved;
+end;
+$$;
+
 revoke all on function watch_household_for (text) from public, anon, authenticated;
 grant execute on function watch_ingest (text, jsonb, text) to anon, authenticated;
 grant execute on function watch_feedback_since (text, timestamptz) to anon, authenticated;
+grant execute on function watch_list_read (text) to anon, authenticated;
+grant execute on function watch_list_save (text, jsonb, text[]) to anon, authenticated;
 
 -- --- After running the above ---------------------------------------------------
 -- Run the one line in supabase/ingest-key.local.sql on the home PC (it is
@@ -200,4 +357,5 @@ grant execute on function watch_feedback_since (text, timestamptz) to anon, auth
 -- Check: this should list the table names with their row counts.
 -- select 'runs' t, count(*) from watch_runs union all
 -- select 'picks', count(*) from watch_picks union all
+-- select 'list', count(*) from watch_list union all
 -- select 'keys', count(*) from watch_ingest_keys;

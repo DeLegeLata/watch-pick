@@ -258,6 +258,90 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+/* Open, Save and Not for us share one row on a phone. */
+.actions.three {
+  grid-template-columns: 1fr auto auto;
+}
+
+.actions.three > * {
+  padding: 0 8px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.save.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Tonight / Watchlist */
+.tabs {
+  display: flex;
+  gap: 20px;
+}
+
+.tabs button {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+}
+
+.tabs button.on {
+  color: var(--ink);
+}
+
+/* Watchlist */
+.add label {
+  font-weight: 600;
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.add-row input {
+  min-width: 0;
+}
+
+.add .small {
+  margin: 8px 0 0;
+}
+
+.pick.item {
+  grid-template-columns: 56px 1fr;
+}
+
+.item .poster {
+  width: 56px;
+  font-size: 1.4rem;
+}
+
+.badge[data-service='none'] {
+  color: var(--muted);
+}
+
+.badge[data-service='pending'] {
+  color: var(--warn);
+}
+
+.note {
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
+.added {
+  margin-top: 6px;
+  font-size: 0.8rem;
+}
+
 /* Sign in */
 .signin form {
   display: grid;

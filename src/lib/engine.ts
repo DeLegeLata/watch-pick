@@ -1,7 +1,7 @@
 // Chooses tonight's cards from the week's picks. Pure functions, tested in
 // engine.test.ts.
 
-import type { Feedback, Mood, Pick, Slot, Unrated } from './model';
+import type { Feedback, ListItem, Mood, Pick, Slot, Unrated } from './model';
 
 /** A movie may run 10 minutes past the window; nobody minds the credits. */
 export const MOVIE_GRACE = 10;
@@ -146,11 +146,38 @@ export function duration(minutes: number): string {
   return m ? `${h} h ${m}` : `${h} h`;
 }
 
-export function ratingLabel(p: Pick): string {
+export function ratingLabel(p: { imdb: number | null; rt: number | null }): string {
   const parts: string[] = [];
   if (p.imdb != null) parts.push(`IMDb ${p.imdb.toFixed(1)}`);
   if (p.rt != null) parts.push(`RT ${p.rt}%`);
   return parts.join(' · ');
+}
+
+/**
+ * The shared watchlist as the phones show it: newest first, without anything
+ * either of them marked seen. `onlyWatchable` keeps what's on Prime, Plex or
+ * Shudder now.
+ */
+export function shownList(list: ListItem[], feedback: Feedback[], onlyWatchable = false): ListItem[] {
+  const seen = new Set(feedback.filter((f) => f.reason === 'seen').map((f) => f.key));
+  return list
+    .filter((l) => !(l.key && seen.has(l.key)) && (!onlyWatchable || l.service))
+    .sort((a, b) => b.added_at.localeCompare(a.added_at));
+}
+
+/** Runtime and ratings for a watchlist row; a typed name not matched yet has neither. */
+export function listMeta(l: ListItem): string {
+  const run = l.minutes == null ? '' : l.kind === 'series' ? `${l.minutes}-min episodes` : duration(l.minutes);
+  return [run, ratingLabel(l)].filter(Boolean).join(' · ');
+}
+
+/** "Added by Sarah, Nov 3", or where an imported title came from. */
+export function addedLabel(l: ListItem, me: string, names: Record<string, string>): string {
+  if (l.source === 'prime') return "From Prime's watchlist";
+  if (l.source === 'plex') return 'From the Plex watchlist';
+  const day = new Date(l.added_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const who = l.added_by === me ? 'you' : l.added_by ? names[l.added_by] : undefined;
+  return who ? `Added by ${who}, ${day}` : `Added ${day}`;
 }
 
 /** "today", "yesterday", or "5 days ago", for the refresh date. */

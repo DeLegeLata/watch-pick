@@ -4,6 +4,7 @@
 export type Slot = 'resume' | 'safe' | 'watchlist' | 'new' | 'rate';
 export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy';
 export type Reason = 'seen' | 'not_me' | 'not_us' | 'not_tonight' | 'someone_else';
+export type Service = 'prime' | 'plex' | 'shudder';
 
 export interface Pick {
   key: string;
@@ -17,13 +18,43 @@ export interface Pick {
   seasons: number | null;
   imdb: number | null;
   rt: number | null;
-  service: 'prime' | 'plex' | 'shudder';
+  service: Service;
   link: string | null;
   poster: string | null;
   moods: Mood[];
   why: string;
   rank: number;
 }
+
+/** A title on the shared watchlist, whatever service it's on. */
+export interface ListItem {
+  id: string;
+  /** The picks' key. Null while a typed name waits for the refresh to match it. */
+  key: string | null;
+  /** What someone typed on a phone. */
+  typed: string | null;
+  title: string;
+  year: number | null;
+  kind: 'movie' | 'series' | null;
+  minutes: number | null;
+  episodes: number | null;
+  seasons: number | null;
+  imdb: number | null;
+  rt: number | null;
+  /** Where they can watch it now; null is not on anything they have. */
+  service: Service | null;
+  link: string | null;
+  poster: string | null;
+  /** The refresh's word on it, e.g. "On Netflix". */
+  note: string | null;
+  /** app: added on a phone; prime / plex: pulled in from that watchlist. */
+  source: 'app' | 'prime' | 'plex';
+  added_by: string | null;
+  added_at: string;
+}
+
+/** What a phone sends to add a title: a saved pick, or just a typed name. */
+export type NewItem = Partial<ListItem> & { title: string };
 
 export interface Feedback {
   id: string;
@@ -86,6 +117,9 @@ export const RATINGS: { value: number; label: string }[] = [
   { value: 2, label: 'Meh' },
   { value: 1, label: "Didn't like it" }
 ];
+
+export const SERVICE_LABEL: Record<Service, string> = { prime: 'Prime Video', plex: 'On Plex', shudder: 'Shudder on Prime' };
+export const OPEN_LABEL: Record<Service, string> = { prime: 'Open in Prime', plex: 'Open in Plex', shudder: 'Open in Prime' };
 
 export const SLOT_LABEL: Record<Slot, string> = {
   resume: 'Pick up where you left off',

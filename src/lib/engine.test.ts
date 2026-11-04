@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ago, chooseTonight, daySeed, fits, hiddenKeys, runtimeLabel, toRate } from './engine';
-import type { Feedback, Pick } from './model';
+import { addedLabel, ago, chooseTonight, daySeed, fits, hiddenKeys, listMeta, runtimeLabel, shownList, toRate } from './engine';
+import type { Feedback, ListItem, Pick } from './model';
 
 const pick = (over: Partial<Pick>): Pick => ({
   key: over.title ?? 'x',
@@ -171,5 +171,54 @@ describe('labels', () => {
     const now = new Date(2026, 10, 8, 20, 0);
     expect(ago(new Date(2026, 10, 8, 9, 0).toISOString(), now)).toBe('today');
     expect(ago(new Date(2026, 10, 6, 16, 0).toISOString(), now)).toBe('2 days ago');
+  });
+});
+
+const item = (over: Partial<ListItem>): ListItem => ({
+  id: over.title ?? 'x',
+  key: over.title ?? 'x',
+  typed: null,
+  title: 'x',
+  year: 2020,
+  kind: 'movie',
+  minutes: null,
+  episodes: null,
+  seasons: null,
+  imdb: null,
+  rt: null,
+  service: null,
+  link: null,
+  poster: null,
+  note: null,
+  source: 'app',
+  added_by: 'me',
+  added_at: '2026-11-01T17:00:00Z',
+  ...over
+});
+
+describe('the shared watchlist', () => {
+  it('shows the newest first and drops what either of them saw', () => {
+    const list = [
+      item({ title: 'old', added_at: '2026-10-01T17:00:00Z' }),
+      item({ title: 'new', added_at: '2026-11-02T17:00:00Z' }),
+      item({ title: 'seen' })
+    ];
+    expect(shownList(list, [fb('seen', 'seen', '2026-11-02T20:00:00Z')]).map((l) => l.title)).toEqual(['new', 'old']);
+  });
+  it('keeps a typed name with no key, and can keep only what they can watch', () => {
+    const list = [item({ title: 'typed', key: null }), item({ title: 'prime', service: 'prime' })];
+    expect(shownList(list, [fb('x', 'seen', '2026-11-02T20:00:00Z')])).toHaveLength(2);
+    expect(shownList(list, [], true).map((l) => l.title)).toEqual(['prime']);
+  });
+  it('shows runtime and ratings only once the refresh has them', () => {
+    expect(listMeta(item({ key: null }))).toBe('');
+    expect(listMeta(item({ kind: 'series', minutes: 47, imdb: 7.5 }))).toBe('47-min episodes · IMDb 7.5');
+  });
+  it('says who added it, or where it came from', () => {
+    const names = { me: 'Stuart', her: 'Sarah' };
+    expect(addedLabel(item({}), 'me', names)).toMatch(/^Added by you, Nov 1$/);
+    expect(addedLabel(item({ added_by: 'her' }), 'me', names)).toMatch(/^Added by Sarah, Nov 1$/);
+    expect(addedLabel(item({ source: 'prime', added_by: null }), 'me', names)).toBe("From Prime's watchlist");
+    expect(addedLabel(item({ source: 'plex', added_by: null }), 'me', names)).toBe('From the Plex watchlist');
   });
 });

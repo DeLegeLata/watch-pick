@@ -8,12 +8,17 @@ installed web app: <https://delegelata.github.io/watch-pick/>.
   1½ h, 2 h +) and a mood, and get a "pick up where you left off" card plus a
   safe bet, a watchlist pick and something new. The three change each day;
   **Show three others** and **Shuffle** deal more from the list of about 100.
-  **Not for us…** is the only thing the phones write: not for us, not for me,
+  **Not for us…** offers: not for us, not for me,
   we've seen it (with "how was it?"), or not tonight; on a resume card, also
   "someone else watched it" for progress that wasn't ours on a shared account.
   Either phone's tap hides the title on both, and a "seen" from one phone asks
   the other person for their rating too. The refresh also sends a "How was
   it?" card for anything it sees we've watched lately.
+- **The Watchlist tab** is one shared list, whatever service a title is on.
+  **Save** on a pick adds it, or either phone can type a name. The refresh
+  matches typed names, pulls in Prime's and Plex's watchlists (never writing
+  back to either), and labels each title with where it can be watched now.
+  The "from your watchlist" picks come from its watchable titles.
 - **The daily refresh** runs on the home PC as a scheduled Claude task, every
   afternoon. Through Claude in Chrome on the signed-in Edge, it reads the
   day's taps and ratings, replaces the picks that were tapped away (with
@@ -50,6 +55,7 @@ npm run dev          # http://localhost:5173/watch-pick/  (add ?demo for sample 
 npm test             # the picking rules
 npm run push -- --dry   # check General Issues\Watching\picks.json without sending
 npm run feedback     # the phones' taps from the last 8 days
+npm run list         # the shared watchlist (save changes with: npm run list -- save <rows>)
 ```
 
 `scripts/plex-lookup.js` is the availability check the refresh runs in an

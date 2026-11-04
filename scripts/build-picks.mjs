@@ -15,9 +15,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { keyFor, link, num, poster, readRows } from './rows.mjs';
 
 const PICKS = join(homedir(), 'Documents', 'General Issues', 'Watching', 'picks.json');
-const SERVER = '9affd4117cb46178c7076c7c2a1b6020ac6bd95f';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -30,26 +30,7 @@ const note = flag('--note');
 const [rowsPath] = args;
 if (!rowsPath) throw new Error('usage: build-picks.mjs <rows.txt> [--drop key,...] [--note "..."] [--fresh]');
 
-export const keyFor = (title, year) =>
-  `${title
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/'/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')}-${year}`;
-
-const num = (s) => (s === '' || s == null ? null : Number(s));
-const poster = (p) =>
-  !p ? null : p.startsWith('t:') ? `https://image.tmdb.org/t/p/w342/${p.slice(2)}` : p.startsWith('m:') ? `https://metadata-static.plex.tv/${p.slice(2)}` : p;
-
-const rows = readFileSync(rowsPath, 'utf8')
-  .split(/\r?\n/)
-  .filter((l) => l.trim() && !l.startsWith('#'))
-  .map((line, n) => {
-    const f = line.split('|');
-    if (f.length !== 14) throw new Error(`line ${n + 1}: ${f.length} fields, want 14: ${line.slice(0, 60)}`);
+const rows = readRows(readFileSync(rowsPath, 'utf8'), 14).map((f) => {
     const [slot, title, year, kind, minutes, episodes, seasons, imdb, rt, service, plexKey, art, moods, why] = f;
     if (service === 'plex' && !plexKey) throw new Error(`${title}: plex needs a plexKey`);
     if (why.length > 90) console.warn(`warning: ${title}: why is ${why.length} characters (90 max)`);
@@ -66,10 +47,7 @@ const rows = readFileSync(rowsPath, 'utf8')
       imdb: num(imdb),
       rt: num(rt),
       service,
-      link:
-        service === 'plex'
-          ? `https://app.plex.tv/desktop/#!/server/${SERVER}/details?key=${encodeURIComponent(`/library/metadata/${plexKey}`)}`
-          : `https://www.primevideo.com/search?phrase=${encodeURIComponent(title)}`,
+      link: link(service, title, plexKey),
       poster: poster(art),
       moods: moods.split(',').filter(Boolean),
       why,

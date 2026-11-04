@@ -5,16 +5,19 @@
   import RateCard from './lib/components/RateCard.svelte';
   import ReasonSheet from './lib/components/ReasonSheet.svelte';
   import SignIn from './lib/components/SignIn.svelte';
-  import { addFeedback, cached, forget, load, undoFeedback, type Snapshot } from './lib/data';
-  import { demoPicks, demoRun } from './lib/demo';
-  import { ago, chooseTonight, daySeed, hiddenKeys, toRate } from './lib/engine';
+  import WatchList from './lib/components/WatchList.svelte';
+  import { addFeedback, addToList, cached, forget, fromPick, load, setRemoved, undoFeedback, type Snapshot } from './lib/data';
+  import { demoItem, demoList, demoPicks, demoRun } from './lib/demo';
+  import { ago, chooseTonight, daySeed, hiddenKeys, shownList, toRate } from './lib/engine';
   import {
     MOODS,
     RATINGS,
     REASONS,
     WINDOWS,
     type Feedback,
+    type ListItem,
     type Mood,
+    type NewItem,
     type Pick,
     type Reason,
     type Unrated
@@ -25,7 +28,11 @@
 
   let session = $state<Session | null>(null);
   let ready = $state(false);
-  let snap = $state<Snapshot | null>(demo ? { household: 'demo', run: demoRun, picks: demoPicks, feedback: [] } : cached());
+  let snap = $state<Snapshot | null>(
+    demo
+      ? { household: 'demo', run: demoRun, picks: demoPicks, feedback: [], list: demoList, listReady: true, names: {} }
+      : cached()
+  );
   let error = $state('');
   let rejecting = $state<Pick | null>(null);
   let toast = $state<{ text: string; undo?: () => void } | null>(null);
@@ -39,6 +46,7 @@
       return fallback;
     }
   };
+  let view = $state<'tonight' | 'list'>(saved('watch-pick:view', 'tonight') === 'list' ? 'list' : 'tonight');
   let windowIndex = $state(Number(saved('watch-pick:window', '1')));
   let mood = $state<Mood | 'any'>(saved('watch-pick:mood', 'any') as Mood | 'any');
   let page = $state(0);
@@ -52,6 +60,7 @@
     try {
       localStorage.setItem('watch-pick:window', String(windowIndex));
       localStorage.setItem('watch-pick:mood', mood);
+      localStorage.setItem('watch-pick:view', view);
     } catch {
       // Not remembering the chips is fine.
     }
@@ -63,6 +72,8 @@
   const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 3 * 86_400_000 : false);
   const me = $derived(demo ? 'demo' : (session?.user.id ?? ''));
   const unrated = $derived(toRate(snap?.feedback ?? [], me, snap?.picks ?? []));
+  const list = $derived(shownList(snap?.list ?? [], snap?.feedback ?? []));
+  const listed = $derived(new Map((snap?.list ?? []).filter((l) => l.key).map((l) => [l.key!, l])));
   const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
 
@@ -138,6 +149,45 @@
     });
   }
 
+  async function addItem(item: NewItem, done: string): Promise<boolean> {
+    if (!snap) return false;
+    let row: ListItem;
+    try {
+      row = demo ? demoItem(item) : await addToList(snap.household!, item);
+    } catch (e) {
+      say(`Couldn't add that: ${e instanceof Error ? e.message : e}`);
+      return false;
+    }
+    snap.list = [row, ...(snap.list ?? []).filter((l) => l.id !== row.id)];
+    say(done);
+    return true;
+  }
+
+  const addTyped = (typed: string) => addItem({ title: typed, typed }, `Added "${typed}". The 4:30 pm refresh looks it up.`);
+
+  async function removeItem(item: ListItem) {
+    if (!snap) return;
+    try {
+      if (!demo) await setRemoved(item.id, true);
+    } catch (e) {
+      say(`Couldn't remove that: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    snap.list = snap.list.filter((l) => l.id !== item.id);
+    say(`${item.title} is off the watchlist.`, async () => {
+      if (!snap) return;
+      if (!demo) await setRemoved(item.id, false).catch(() => say("Couldn't undo; try again with a signal."));
+      snap.list = [item, ...snap.list];
+      toast = null;
+    });
+  }
+
+  function toggleSave(pick: Pick) {
+    const on = listed.get(pick.key);
+    if (on) removeItem(on);
+    else addItem(fromPick(pick), `Saved ${pick.title} to the watchlist.`);
+  }
+
   async function leave() {
     forget();
     snap = null;
@@ -147,9 +197,18 @@
 
 <main>
   <header>
-    <h1>Tonight</h1>
-    {#if snap?.run}
+    {#if session || demo}
+      <nav class="tabs" aria-label="Views">
+        <button class:on={view === 'tonight'} aria-pressed={view === 'tonight'} onclick={() => (view = 'tonight')}>Tonight</button>
+        <button class:on={view === 'list'} aria-pressed={view === 'list'} onclick={() => (view = 'list')}>Watchlist</button>
+      </nav>
+    {:else}
+      <h1>Tonight</h1>
+    {/if}
+    {#if view === 'tonight' && snap?.run}
       <p class="muted">Picks updated {ago(snap.run.ran_at, now)}{demo ? ' (demo)' : ''}</p>
+    {:else if view === 'list' && demo}
+      <p class="muted">Demo list</p>
     {/if}
   </header>
 
@@ -159,6 +218,12 @@
     <p class="muted center">Loading…</p>
   {:else if !session && !demo}
     <SignIn />
+  {:else if view === 'list'}
+    {#if error}<p class="flag">{error}</p>{/if}
+    <WatchList items={list} {me} names={snap?.names ?? {}} ready={snap?.listReady ?? true} onadd={addTyped} onremove={removeItem} />
+    {#if !demo}
+      <footer><button class="link" onclick={leave}>Sign out</button></footer>
+    {/if}
   {:else}
     <section class="chips" aria-label="How long have you got?">
       {#each WINDOWS as w, i (w.label)}
@@ -183,7 +248,7 @@
         <PickCard pick={tonight.resume} onreject={(p) => (rejecting = p)} />
       {/if}
       {#each tonight.cards as c (c.key)}
-        <PickCard pick={c} onreject={(p) => (rejecting = p)} />
+        <PickCard pick={c} saved={listed.has(c.key)} onreject={(p) => (rejecting = p)} onsave={snap?.listReady === false ? undefined : toggleSave} />
       {:else}
         <section class="card"><p>Nothing this week fits that. Try more time or another mood.</p></section>
       {/each}
