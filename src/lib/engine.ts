@@ -1,7 +1,7 @@
 // Chooses tonight's cards from the week's picks. Pure functions, tested in
 // engine.test.ts.
 
-import type { Feedback, ListItem, Mood, Pick, Slot, Unrated } from './model';
+import type { Feedback, ListItem, Mood, Pick, Slot, Unrated, Whose } from './model';
 
 /** A movie may run 10 minutes past the window; nobody minds the credits. */
 export const MOVIE_GRACE = 10;
@@ -153,16 +153,34 @@ export function ratingLabel(p: { imdb: number | null; rt: number | null }): stri
   return parts.join(' · ');
 }
 
+/** When someone last said they want it: a title that just became Both rises to the top. */
+const lastWanted = (l: ListItem) => l.wants.reduce((at, w) => (w.wanted_at > at ? w.wanted_at : at), l.added_at);
+
 /**
- * The shared watchlist as the phones show it: newest first, without anything
- * either of them marked seen. `onlyWatchable` keeps what's on Prime, Plex or
- * Shudder now.
+ * The shared watchlist as the phones show it: the most recently wanted first,
+ * without anything either of them marked seen. `onlyWatchable` keeps what's on
+ * Prime, Plex or Shudder now.
  */
 export function shownList(list: ListItem[], feedback: Feedback[], onlyWatchable = false): ListItem[] {
   const seen = new Set(feedback.filter((f) => f.reason === 'seen').map((f) => f.key));
   return list
     .filter((l) => !(l.key && seen.has(l.key)) && (!onlyWatchable || l.service))
-    .sort((a, b) => b.added_at.localeCompare(a.added_at));
+    .sort((a, b) => lastWanted(b).localeCompare(lastWanted(a)));
+}
+
+/** Each person's list is everything they want, so Both sits inside Mine and inside theirs. */
+export function inView(l: ListItem, me: string, view: Whose): boolean {
+  const mine = l.wants.some((w) => w.user_id === me);
+  const theirs = l.wants.some((w) => w.user_id !== me);
+  if (view === 'both') return mine && theirs;
+  if (view === 'mine') return mine;
+  if (view === 'theirs') return theirs;
+  return true;
+}
+
+/** The other person's name, for "Sarah's" on Stuart's phone and "Stuart's" on hers. */
+export function otherName(names: Record<string, string>, me: string): string | undefined {
+  return Object.entries(names).find(([id]) => id !== me)?.[1];
 }
 
 /** Runtime and ratings for a watchlist row; a typed name not matched yet has neither. */
@@ -171,13 +189,19 @@ export function listMeta(l: ListItem): string {
   return [run, ratingLabel(l)].filter(Boolean).join(' · ');
 }
 
-/** "Added by Sarah, Nov 3", or where an imported title came from. */
-export function addedLabel(l: ListItem, me: string, names: Record<string, string>): string {
-  if (l.source === 'prime') return "From Prime's watchlist";
-  if (l.source === 'plex') return 'From the Plex watchlist';
-  const day = new Date(l.added_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const who = l.added_by === me ? 'you' : l.added_by ? names[l.added_by] : undefined;
-  return who ? `Added by ${who}, ${day}` : `Added ${day}`;
+/** "You both want this", "Added by Sarah, Nov 3", or whose watchlist a title came from. */
+export function wantLabel(l: ListItem, me: string, names: Record<string, string>): string {
+  const day = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const mine = l.wants.find((w) => w.user_id === me);
+  const theirs = l.wants.find((w) => w.user_id !== me);
+  if (mine && theirs) return 'You both want this';
+  const w = mine ?? theirs;
+  if (!w) return `Added ${day(l.added_at)}`;
+  const name = mine ? 'you' : (names[w.user_id] ?? 'the other phone');
+  if (w.via === 'prime') return mine ? 'From your Prime watchlist' : `From ${name}'s Prime watchlist`;
+  // The Plex watchlist is on a shared account, so it's "the" one, not "your" one.
+  if (w.via === 'plex') return mine ? 'From the Plex watchlist' : `${name}'s, from the Plex watchlist`;
+  return `Added by ${name}, ${day(w.wanted_at)}`;
 }
 
 /** "today", "yesterday", or "5 days ago", for the refresh date. */

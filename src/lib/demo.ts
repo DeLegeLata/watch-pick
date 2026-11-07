@@ -1,6 +1,6 @@
 // Sample picks for ?demo, from the first test run on 2026-11-01. They let the
 // app be seen before Supabase is set up; taps in demo mode stay in memory.
-import type { ListItem, NewItem, Pick, Run } from './model';
+import type { ListItem, Pick, Run, Want } from './model';
 
 export const demoRun: Run = { id: 'demo', ran_at: '2026-11-01T17:00:00Z', note: 'Demo picks' };
 
@@ -46,33 +46,38 @@ export const demoPicks: Pick[] = [
   }
 ];
 
+// The demo phone is Stuart's; 'demo-sarah' stands in for Sarah.
+export const demoNames: Record<string, string> = { demo: 'Stuart', 'demo-sarah': 'Sarah' };
+
 const blank: Omit<ListItem, 'id' | 'title' | 'added_at'> = {
   key: null, typed: null, year: null, kind: null, minutes: null, episodes: null, seasons: null, imdb: null,
-  rt: null, service: null, link: null, poster: null, note: null, source: 'app', added_by: 'demo'
+  rt: null, service: null, link: null, poster: null, note: null, source: 'app', added_by: 'demo', wants: []
 };
 
-/** A watchlist row made in memory, for adds in demo mode. */
-export const demoItem = (item: NewItem): ListItem => ({
-  ...blank,
-  ...item,
-  id: crypto.randomUUID(),
-  added_at: new Date().toISOString()
-});
+const wants = (...w: [string, Want['via'], string][]): Want[] =>
+  w.map(([user_id, via, wanted_at]) => ({ user_id, via, wanted_at }));
 
-// Titles from their Prime watchlist on 2026-11-01, one typed name and one paid title.
+// Titles from their Prime watchlist on 2026-11-01, one typed name and one paid
+// title: one of them is Sarah's, one is both of theirs.
 export const demoList: ListItem[] = [
-  { ...blank, id: 'd1', typed: 'the pitt', title: 'the pitt', added_at: '2026-11-03T01:00:00Z' },
+  {
+    ...blank, id: 'd1', typed: 'the pitt', title: 'the pitt', added_by: 'demo-sarah', added_at: '2026-11-03T01:00:00Z',
+    wants: wants(['demo-sarah', 'app', '2026-11-03T01:00:00Z'])
+  },
   {
     ...blank, id: 'd2', key: 'eddington-2025', title: 'Eddington', year: 2025, kind: 'movie',
-    note: 'Rent or buy on Prime.', added_at: '2026-11-02T01:00:00Z'
+    note: 'Rent or buy on Prime.', source: 'prime', added_at: '2026-11-02T01:00:00Z',
+    wants: wants(['demo', 'prime', '2026-11-02T01:00:00Z'])
   },
   {
     ...blank, id: 'd3', key: 'young-sherlock-2026', title: 'Young Sherlock', year: 2026, kind: 'series', minutes: 53,
-    seasons: 1, imdb: 7.5, service: 'prime', link: prime('Young Sherlock'), source: 'prime', added_by: null,
-    added_at: '2026-11-01T01:00:00Z'
+    seasons: 1, imdb: 7.5, service: 'prime', link: prime('Young Sherlock'), source: 'prime',
+    added_at: '2026-11-01T01:00:00Z',
+    wants: wants(['demo', 'prime', '2026-11-01T01:00:00Z'], ['demo-sarah', 'app', '2026-11-04T01:00:00Z'])
   },
   {
     ...blank, id: 'd4', key: 'halloween-1978', title: 'Halloween', year: 1978, kind: 'movie', service: 'shudder',
-    link: prime('Halloween 1978'), source: 'prime', added_by: null, added_at: '2026-10-30T01:00:00Z'
+    link: prime('Halloween 1978'), source: 'prime', added_at: '2026-10-30T01:00:00Z',
+    wants: wants(['demo', 'prime', '2026-10-30T01:00:00Z'])
   }
 ];

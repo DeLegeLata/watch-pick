@@ -6,9 +6,9 @@
   import ReasonSheet from './lib/components/ReasonSheet.svelte';
   import SignIn from './lib/components/SignIn.svelte';
   import WatchList from './lib/components/WatchList.svelte';
-  import { addFeedback, addToList, cached, forget, fromPick, load, setRemoved, undoFeedback, type Snapshot } from './lib/data';
-  import { demoItem, demoList, demoPicks, demoRun } from './lib/demo';
-  import { ago, chooseTonight, daySeed, hiddenKeys, shownList, toRate } from './lib/engine';
+  import { addFeedback, cached, forget, fromPick, load, newItem, setWanted, undoFeedback, want, type Snapshot } from './lib/data';
+  import { demoList, demoNames, demoPicks, demoRun } from './lib/demo';
+  import { ago, chooseTonight, daySeed, hiddenKeys, otherName, shownList, toRate } from './lib/engine';
   import {
     MOODS,
     RATINGS,
@@ -30,7 +30,7 @@
   let ready = $state(false);
   let snap = $state<Snapshot | null>(
     demo
-      ? { household: 'demo', run: demoRun, picks: demoPicks, feedback: [], list: demoList, listReady: true, names: {} }
+      ? { household: 'demo', run: demoRun, picks: demoPicks, feedback: [], list: demoList, listReady: true, names: demoNames }
       : cached()
   );
   let error = $state('');
@@ -73,7 +73,11 @@
   const me = $derived(demo ? 'demo' : (session?.user.id ?? ''));
   const unrated = $derived(toRate(snap?.feedback ?? [], me, snap?.picks ?? []));
   const list = $derived(shownList(snap?.list ?? [], snap?.feedback ?? []));
-  const listed = $derived(new Map((snap?.list ?? []).filter((l) => l.key).map((l) => [l.key!, l])));
+  // A pick shows as saved when it's on this person's own list.
+  const mine = $derived(
+    new Map((snap?.list ?? []).filter((l) => l.key && l.wants.some((w) => w.user_id === me)).map((l) => [l.key!, l]))
+  );
+  const other = $derived(otherName(snap?.names ?? {}, me));
   const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
 
@@ -149,43 +153,54 @@
     });
   }
 
+  /** Puts a title on this person's list: a saved pick, a typed name, or Me too (item.id). */
   async function addItem(item: NewItem, done: string): Promise<boolean> {
     if (!snap) return false;
-    let row: ListItem;
+    let id: string;
     try {
-      row = demo ? demoItem(item) : await addToList(snap.household!, item);
+      id = demo ? (item.id ?? crypto.randomUUID()) : await want(snap.household!, item);
     } catch (e) {
       say(`Couldn't add that: ${e instanceof Error ? e.message : e}`);
       return false;
     }
-    snap.list = [row, ...(snap.list ?? []).filter((l) => l.id !== row.id)];
-    say(done);
+    const known = snap.list.find((l) => l.id === id || (item.key && l.key === item.key));
+    const fresh = newItem(item, id, me);
+    const row = known ? { ...known, wants: [...known.wants.filter((w) => w.user_id !== me), ...fresh.wants] } : fresh;
+    snap.list = [row, ...snap.list.filter((l) => l.id !== row.id)];
+    say(row.wants.length > 1 ? `You both want ${row.title} now.` : done);
     return true;
   }
 
   const addTyped = (typed: string) => addItem({ title: typed, typed }, `Added "${typed}". The 4:30 pm refresh looks it up.`);
 
+  const meToo = (item: ListItem) => addItem({ id: item.id, title: item.title }, `${item.title} is on your list too.`);
+
+  /** Takes a title off this person's list; it stays on the other one's if they want it. */
   async function removeItem(item: ListItem) {
     if (!snap) return;
     try {
-      if (!demo) await setRemoved(item.id, true);
+      if (!demo) await setWanted(item.id, me, false);
     } catch (e) {
       say(`Couldn't remove that: ${e instanceof Error ? e.message : e}`);
       return;
     }
-    snap.list = snap.list.filter((l) => l.id !== item.id);
-    say(`${item.title} is off the watchlist.`, async () => {
+    const rest = item.wants.filter((w) => w.user_id !== me);
+    snap.list = rest.length
+      ? snap.list.map((l) => (l.id === item.id ? { ...l, wants: rest } : l))
+      : snap.list.filter((l) => l.id !== item.id);
+    const text = rest.length ? `${item.title} is off your list. It stays on ${other ?? 'the other'}'s.` : `${item.title} is off the watchlist.`;
+    say(text, async () => {
       if (!snap) return;
-      if (!demo) await setRemoved(item.id, false).catch(() => say("Couldn't undo; try again with a signal."));
-      snap.list = [item, ...snap.list];
+      if (!demo) await setWanted(item.id, me, true).catch(() => say("Couldn't undo; try again with a signal."));
+      snap.list = [item, ...snap.list.filter((l) => l.id !== item.id)];
       toast = null;
     });
   }
 
   function toggleSave(pick: Pick) {
-    const on = listed.get(pick.key);
+    const on = mine.get(pick.key);
     if (on) removeItem(on);
-    else addItem(fromPick(pick), `Saved ${pick.title} to the watchlist.`);
+    else addItem(fromPick(pick), `Saved ${pick.title} to your watchlist.`);
   }
 
   async function leave() {
@@ -220,7 +235,16 @@
     <SignIn />
   {:else if view === 'list'}
     {#if error}<p class="flag">{error}</p>{/if}
-    <WatchList items={list} {me} names={snap?.names ?? {}} ready={snap?.listReady ?? true} onadd={addTyped} onremove={removeItem} />
+    <WatchList
+      items={list}
+      {me}
+      {other}
+      names={snap?.names ?? {}}
+      ready={snap?.listReady ?? true}
+      onadd={addTyped}
+      onremove={removeItem}
+      onmetoo={meToo}
+    />
     {#if !demo}
       <footer><button class="link" onclick={leave}>Sign out</button></footer>
     {/if}
@@ -248,7 +272,7 @@
         <PickCard pick={tonight.resume} onreject={(p) => (rejecting = p)} />
       {/if}
       {#each tonight.cards as c (c.key)}
-        <PickCard pick={c} saved={listed.has(c.key)} onreject={(p) => (rejecting = p)} onsave={snap?.listReady === false ? undefined : toggleSave} />
+        <PickCard pick={c} saved={mine.has(c.key)} onreject={(p) => (rejecting = p)} onsave={snap?.listReady === false ? undefined : toggleSave} />
       {:else}
         <section class="card"><p>Nothing this week fits that. Try more time or another mood.</p></section>
       {/each}

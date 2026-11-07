@@ -47,11 +47,23 @@ export interface ListItem {
   poster: string | null;
   /** The refresh's word on it, e.g. "On Netflix". */
   note: string | null;
-  /** app: added on a phone; prime / plex: pulled in from that watchlist. */
+  /** How it first arrived: app is added on a phone; prime / plex is pulled in from a watchlist there. */
   source: 'app' | 'prime' | 'plex';
   added_by: string | null;
   added_at: string;
+  /** Who wants it now: one of them, or both. */
+  wants: Want[];
 }
+
+/** One person wanting a title: saved or typed on their phone, or on their own Prime or Plex watchlist. */
+export interface Want {
+  user_id: string;
+  via: 'app' | 'prime' | 'plex';
+  wanted_at: string;
+}
+
+/** Which of the watchlist's views a title is in: Both is where their lists overlap. */
+export type Whose = 'both' | 'mine' | 'theirs' | 'all';
 
 /** What a phone sends to add a title: a saved pick, or just a typed name. */
 export type NewItem = Partial<ListItem> & { title: string };

@@ -342,6 +342,31 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+/* Both, Mine, Sarah's and All fit one row on a 360 px phone. */
+.chips.whose {
+  gap: 5px;
+}
+
+.chips.whose button {
+  padding: 0 10px;
+}
+
+/* A title they both want: the sweet spot. */
+.pick.item.both {
+  border-color: var(--accent);
+}
+
+.pick.item.both .added {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.metoo {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 /* Sign in */
 .signin form {
   display: grid;

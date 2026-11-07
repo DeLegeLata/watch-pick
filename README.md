@@ -14,11 +14,15 @@ installed web app: <https://delegelata.github.io/watch-pick/>.
   Either phone's tap hides the title on both, and a "seen" from one phone asks
   the other person for their rating too. The refresh also sends a "How was
   it?" card for anything it sees we've watched lately.
-- **The Watchlist tab** is one shared list, whatever service a title is on.
-  **Save** on a pick adds it, or either phone can type a name. The refresh
-  matches typed names, pulls in Prime's and Plex's watchlists (never writing
-  back to either), and labels each title with where it can be watched now.
-  The "from your watchlist" picks come from its watchable titles.
+- **The Watchlist tab** is one shared list, whatever service a title is on,
+  and each title records who wants it: **Mine**, the other person's, and
+  **Both** where the two lists overlap. **Save** on a pick or a typed name
+  goes on your own list; **Me too** adds you to the other person's title;
+  **Remove** takes it off your list only. The refresh matches typed names,
+  pulls in each person's own Prime watchlist and the Plex watchlist (never
+  writing back to either), and labels each title with where it can be
+  watched now. The "from your watchlist" picks come from its watchable
+  titles, the ones you both want first.
 - **The daily refresh** runs on the home PC as a scheduled Claude task, every
   afternoon. Through Claude in Chrome on the signed-in Edge, it reads the
   day's taps and ratings, replaces the picks that were tapped away (with

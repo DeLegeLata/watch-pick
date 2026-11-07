@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addedLabel, ago, chooseTonight, daySeed, fits, hiddenKeys, listMeta, runtimeLabel, shownList, toRate } from './engine';
-import type { Feedback, ListItem, Pick } from './model';
+import { ago, chooseTonight, daySeed, fits, hiddenKeys, inView, listMeta, otherName, runtimeLabel, shownList, toRate, wantLabel } from './engine';
+import type { Feedback, ListItem, Pick, Want, Whose } from './model';
 
 const pick = (over: Partial<Pick>): Pick => ({
   key: over.title ?? 'x',
@@ -193,17 +193,46 @@ const item = (over: Partial<ListItem>): ListItem => ({
   source: 'app',
   added_by: 'me',
   added_at: '2026-11-01T17:00:00Z',
+  wants: [],
   ...over
 });
 
+const want = (user_id: string, via: Want['via'] = 'app', wanted_at = '2026-11-01T17:00:00Z'): Want => ({
+  user_id,
+  via,
+  wanted_at
+});
+
 describe('the shared watchlist', () => {
-  it('shows the newest first and drops what either of them saw', () => {
+  it('shows the most recently wanted first and drops what either of them saw', () => {
     const list = [
       item({ title: 'old', added_at: '2026-10-01T17:00:00Z' }),
       item({ title: 'new', added_at: '2026-11-02T17:00:00Z' }),
-      item({ title: 'seen' })
+      item({ title: 'seen' }),
+      item({
+        title: 'now both',
+        added_at: '2026-09-01T17:00:00Z',
+        wants: [want('me', 'prime', '2026-09-01T17:00:00Z'), want('her', 'app', '2026-11-03T17:00:00Z')]
+      })
     ];
-    expect(shownList(list, [fb('seen', 'seen', '2026-11-02T20:00:00Z')]).map((l) => l.title)).toEqual(['new', 'old']);
+    expect(shownList(list, [fb('seen', 'seen', '2026-11-02T20:00:00Z')]).map((l) => l.title)).toEqual([
+      'now both',
+      'new',
+      'old'
+    ]);
+  });
+  it('splits the list into Mine, theirs and Both', () => {
+    const list = [
+      item({ title: 'mine', wants: [want('me')] }),
+      item({ title: 'hers', wants: [want('her')] }),
+      item({ title: 'both', wants: [want('me'), want('her')] })
+    ];
+    const titles = (view: Whose) => list.filter((l) => inView(l, 'me', view)).map((l) => l.title);
+    expect(titles('both')).toEqual(['both']);
+    expect(titles('mine')).toEqual(['mine', 'both']);
+    expect(titles('theirs')).toEqual(['hers', 'both']);
+    expect(titles('all')).toHaveLength(3);
+    expect(otherName({ me: 'Stuart', her: 'Sarah' }, 'me')).toBe('Sarah');
   });
   it('keeps a typed name with no key, and can keep only what they can watch', () => {
     const list = [item({ title: 'typed', key: null }), item({ title: 'prime', service: 'prime' })];
@@ -214,11 +243,14 @@ describe('the shared watchlist', () => {
     expect(listMeta(item({ key: null }))).toBe('');
     expect(listMeta(item({ kind: 'series', minutes: 47, imdb: 7.5 }))).toBe('47-min episodes · IMDb 7.5');
   });
-  it('says who added it, or where it came from', () => {
+  it('says who wants it, and whose watchlist it came from', () => {
     const names = { me: 'Stuart', her: 'Sarah' };
-    expect(addedLabel(item({}), 'me', names)).toMatch(/^Added by you, Nov 1$/);
-    expect(addedLabel(item({ added_by: 'her' }), 'me', names)).toMatch(/^Added by Sarah, Nov 1$/);
-    expect(addedLabel(item({ source: 'prime', added_by: null }), 'me', names)).toBe("From Prime's watchlist");
-    expect(addedLabel(item({ source: 'plex', added_by: null }), 'me', names)).toBe('From the Plex watchlist');
+    const label = (...wants: Want[]) => wantLabel(item({ wants }), 'me', names);
+    expect(label(want('me'))).toBe('Added by you, Nov 1');
+    expect(label(want('her'))).toBe('Added by Sarah, Nov 1');
+    expect(label(want('me', 'prime'))).toBe('From your Prime watchlist');
+    expect(label(want('her', 'prime'))).toBe("From Sarah's Prime watchlist");
+    expect(label(want('me', 'plex'))).toBe('From the Plex watchlist');
+    expect(label(want('me'), want('her', 'prime'))).toBe('You both want this');
   });
 });

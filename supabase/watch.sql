@@ -187,11 +187,13 @@ end;
 $$;
 
 -- --- The shared watchlist (added 2026-11-03) ---------------------------------
--- One list for both of them, whatever service a title is on. The phones add
--- to it (a saved pick, or a typed name) and take titles off it. The refresh
--- matches typed names, pulls in Prime's and Plex's watchlists, and keeps
--- where each title can be watched up to date. Nothing is written back to
--- Prime or Plex.
+-- One list for both of them, whatever service a title is on. Each title
+-- records who wants it (watch_list_wants, added 2026-11-07): a pick saved or
+-- a name typed on a phone is that person's, and a title on Stuart's or
+-- Sarah's own Prime or Plex watchlist is theirs. A title they both want is
+-- the sweet spot. The refresh matches typed names, pulls in those
+-- watchlists, and keeps where each title can be watched up to date. Nothing
+-- is written back to Prime or Plex.
 
 create table if not exists watch_list (
   id uuid primary key default gen_random_uuid(),
@@ -215,12 +217,15 @@ create table if not exists watch_list (
   poster text,
   -- The refresh's word on it, e.g. "On Netflix" or "Couldn't find this".
   note text,
-  -- app: added on a phone; prime / plex: pulled in from that watchlist.
+  -- How it first arrived, and from whom: app is added on a phone; prime /
+  -- plex is pulled in from a watchlist there. Who wants it now is in
+  -- watch_list_wants.
   source text not null default 'app' check (source in ('app', 'prime', 'plex')),
   added_by uuid default auth.uid () references auth.users (id) on delete set null,
   added_at timestamptz not null default now(),
   checked_at timestamptz,
-  -- Taken off the list. The row stays so a removed import isn't pulled in again.
+  -- Off the list: nobody wants it any more (kept in step by a trigger on
+  -- watch_list_wants). The row stays so it isn't pulled in again.
   removed_at timestamptz,
   constraint watch_list_key unique (household_id, key)
 );
@@ -244,8 +249,126 @@ with
 revoke update on watch_list from anon, authenticated;
 grant update (removed_at, added_at) on watch_list to authenticated;
 
--- The whole list, for the refresh.
-create or replace function watch_list_read (p_token text) returns table (
+-- --- Who wants each title (added 2026-11-07) ---------------------------------
+-- Each of them has their own list inside the shared one: Mine, Sarah's or
+-- Stuart's, and Both where they overlap. Taking a title off sets only your
+-- own removed_at; the row stays, so the refresh doesn't pull it in for you
+-- again. The title leaves the list once neither of them wants it.
+
+create table if not exists watch_list_wants (
+  item_id uuid not null references watch_list (id) on delete cascade,
+  user_id uuid not null default auth.uid () references auth.users (id) on delete cascade,
+  -- app: saved or typed on a phone; prime / plex: on this person's watchlist there.
+  via text not null default 'app' check (via in ('app', 'prime', 'plex')),
+  wanted_at timestamptz not null default now(),
+  removed_at timestamptz,
+  primary key (item_id, user_id)
+);
+
+alter table watch_list_wants enable row level security;
+
+drop policy if exists watch_list_wants_read on watch_list_wants;
+create policy watch_list_wants_read on watch_list_wants for select using (
+  exists (select 1 from watch_list l where l.id = watch_list_wants.item_id and is_member (l.household_id))
+);
+
+drop policy if exists watch_list_wants_add on watch_list_wants;
+create policy watch_list_wants_add on watch_list_wants for insert
+with
+  check (
+    user_id = auth.uid () and via = 'app'
+    and exists (select 1 from watch_list l where l.id = watch_list_wants.item_id and is_member (l.household_id))
+  );
+
+drop policy if exists watch_list_wants_change on watch_list_wants;
+create policy watch_list_wants_change on watch_list_wants for update using (user_id = auth.uid ())
+with
+  check (user_id = auth.uid ());
+
+-- Each phone only takes its own wants off and puts them back.
+revoke update on watch_list_wants from anon, authenticated;
+grant update (removed_at, wanted_at) on watch_list_wants to authenticated;
+
+-- Whoever adds a title wants it. This also covers a phone still on the
+-- version from before 2026-11-07, which writes only watch_list.
+create or replace function watch_list_first_want () returns trigger language plpgsql
+set search_path = '' as $$
+begin
+  if new.added_by is not null then
+    insert into public.watch_list_wants (item_id, user_id, via, wanted_at)
+    values (new.id, new.added_by, new.source, new.added_at)
+    on conflict do nothing;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists watch_list_first_want on watch_list;
+create trigger watch_list_first_want after insert on watch_list
+for each row execute function watch_list_first_want ();
+
+-- A title is on the list while anyone wants it.
+create or replace function watch_list_follow_wants () returns trigger language plpgsql
+set search_path = '' as $$
+begin
+  update public.watch_list l
+  set removed_at = case
+    when exists (select 1 from public.watch_list_wants w where w.item_id = l.id and w.removed_at is null) then null
+    else coalesce(l.removed_at, now())
+  end
+  where l.id = new.item_id;
+  return null;
+end;
+$$;
+
+drop trigger if exists watch_list_wants_follow on watch_list_wants;
+create trigger watch_list_wants_follow after insert or update on watch_list_wants
+for each row execute function watch_list_follow_wants ();
+
+-- First names, for the phones' "Sarah's" and "Added by Stuart".
+update members set display_name = 'Stuart' where display_name ilike 'stuart%' and display_name <> 'Stuart';
+update members set display_name = 'Sarah' where display_name ilike 'sarah%' and display_name <> 'Sarah';
+
+-- Everything on the list before 2026-11-07 was Stuart's: his Prime and Plex
+-- watchlists, and anything saved or typed while both phones were signed in
+-- as him.
+insert into watch_list_wants (item_id, user_id, via, wanted_at, removed_at)
+select l.id, m.user_id, l.source, l.added_at, l.removed_at
+from watch_list l
+join members m on m.household_id = l.household_id and m.display_name = 'Stuart'
+where not exists (select 1 from watch_list_wants w where w.item_id = l.id)
+on conflict do nothing;
+
+-- A phone saying "I want this": a saved pick, a typed name, or Me too on a
+-- title already on the list (p_item then has its id). It runs as the
+-- person, so row-level security applies.
+create or replace function watch_list_want (p_household uuid, p_item jsonb) returns uuid language plpgsql
+set search_path = '' as $$
+declare
+  item uuid := (p_item ->> 'id')::uuid;
+  item_key text := nullif(p_item ->> 'key', '');
+begin
+  if item is null and item_key is not null then
+    select l.id into item from public.watch_list l where l.household_id = p_household and l.key = item_key;
+  end if;
+  if item is null then
+    insert into public.watch_list (household_id, key, typed, title, year, kind, minutes, episodes, seasons, imdb,
+                                   rt, service, link, poster)
+    select p_household, item_key, x.typed, x.title, x.year, x.kind, x.minutes, x.episodes, x.seasons, x.imdb,
+           x.rt, x.service, x.link, x.poster
+    from jsonb_populate_record(null::public.watch_list, p_item) x
+    returning id into item;
+  end if;
+  insert into public.watch_list_wants (item_id) values (item)
+  on conflict (item_id, user_id) do update set removed_at = null, wanted_at = now();
+  return item;
+end;
+$$;
+
+-- The whole list, for the refresh. wants: who wants it and how, e.g.
+-- "Sarah (app), Stuart (prime)"; taken_off: who took it off their own list.
+drop function if exists watch_list_read (text);
+create function watch_list_read (p_token text) returns table (
   id uuid,
   key text,
   typed text,
@@ -255,6 +378,8 @@ create or replace function watch_list_read (p_token text) returns table (
   note text,
   source text,
   who text,
+  wants text,
+  taken_off text,
   added_at timestamptz,
   checked_at timestamptz,
   removed_at timestamptz
@@ -269,6 +394,12 @@ begin
   end if;
   return query
     select l.id, l.key, l.typed, l.title, l.year, l.service, l.note, l.source, m.display_name,
+           (select string_agg(p.display_name || ' (' || w.via || ')', ', ' order by p.display_name)
+            from watch_list_wants w join members p on p.household_id = l.household_id and p.user_id = w.user_id
+            where w.item_id = l.id and w.removed_at is null),
+           (select string_agg(p.display_name, ', ' order by p.display_name)
+            from watch_list_wants w join members p on p.household_id = l.household_id and p.user_id = w.user_id
+            where w.item_id = l.id and w.removed_at is not null),
            l.added_at, l.checked_at, l.removed_at
     from watch_list l
     left join members m on m.household_id = l.household_id and m.user_id = l.added_by
@@ -278,11 +409,12 @@ end;
 $$;
 
 -- The refresh's changes. Each row of p_rows is one title, by key:
--- - with an id and a key: a typed name, now matched;
+-- - with an id and a key: a typed name, now matched (its wants move with it);
 -- - with an id and no key: a typed name it couldn't match (only note is kept);
--- - with no id: pulled in from Prime or Plex (source), or rechecked. A title
---   already on the list keeps its source and stays removed if it was.
--- p_remove takes titles off by key, e.g. once they've watched them.
+-- - with who and via: on that person's Prime or Plex watchlist, so it goes on
+--   their list, unless they took it off before;
+-- - with neither: a recheck of a title already on the list.
+-- p_remove takes titles off for both of them by key, e.g. once they've watched them.
 create or replace function watch_list_save (p_token text, p_rows jsonb, p_remove text[] default '{}') returns integer language plpgsql security definer
 set
   search_path = public, extensions as $$
@@ -290,6 +422,8 @@ declare
   home uuid := watch_household_for(p_token);
   r record;
   other uuid;
+  person uuid;
+  item uuid;
   saved integer := 0;
 begin
   if home is null then
@@ -300,7 +434,7 @@ begin
     select * from jsonb_to_recordset(coalesce(p_rows, '[]')) as x (
       id uuid, key text, title text, year integer, kind text, minutes integer, episodes integer,
       seasons integer, imdb numeric, rt integer, service text, link text, poster text, note text,
-      source text
+      who text, via text
     )
   loop
     if r.id is not null and r.key is null then
@@ -309,30 +443,62 @@ begin
       continue;
     end if;
 
+    person := null;
+    if r.who is not null then
+      select m.user_id into person from members m
+      where m.household_id = home and m.display_name ilike (r.who || '%') limit 1;
+      if person is null then
+        raise exception 'watch_list_save: nobody called %', r.who;
+      end if;
+    end if;
+
+    if r.id is null and person is null then
+      update watch_list set
+        title = r.title, year = r.year, kind = r.kind, minutes = r.minutes, episodes = r.episodes,
+        seasons = r.seasons, imdb = r.imdb, rt = r.rt, service = r.service, link = r.link,
+        poster = r.poster, note = r.note, checked_at = now()
+      where household_id = home and key = r.key;
+      saved := saved + 1;
+      continue;
+    end if;
+
     if r.id is not null then
-      -- Typed again for a title already on the list: keep that row, and put it
-      -- back if it had been taken off.
       select l.id into other from watch_list l where l.household_id = home and l.key = r.key and l.id <> r.id;
       if other is null then
         update watch_list set key = r.key where id = r.id and household_id = home;
       else
+        -- Typed again for a title already on the list: whoever typed it now
+        -- wants that row, which comes back if it had been taken off.
+        insert into watch_list_wants (item_id, user_id, via, wanted_at)
+        select other, w.user_id, w.via, w.wanted_at from watch_list_wants w
+        where w.item_id = r.id and w.removed_at is null
+        on conflict (item_id, user_id) do update set removed_at = null;
         delete from watch_list where id = r.id and household_id = home;
-        update watch_list set removed_at = null where id = other;
       end if;
     end if;
 
     insert into watch_list (household_id, key, title, year, kind, minutes, episodes, seasons, imdb, rt,
                             service, link, poster, note, source, added_by, checked_at)
     values (home, r.key, r.title, r.year, r.kind, r.minutes, r.episodes, r.seasons, r.imdb, r.rt,
-            r.service, r.link, r.poster, r.note, coalesce(r.source, 'prime'), null, now())
+            r.service, r.link, r.poster, r.note, coalesce(r.via, 'app'), person, now())
     on conflict (household_id, key) do update set
       title = excluded.title, year = excluded.year, kind = excluded.kind, minutes = excluded.minutes,
       episodes = excluded.episodes, seasons = excluded.seasons, imdb = excluded.imdb, rt = excluded.rt,
       service = excluded.service, link = excluded.link, poster = excluded.poster, note = excluded.note,
-      checked_at = now();
+      checked_at = now()
+    returning id into item;
+
+    if person is not null then
+      insert into watch_list_wants (item_id, user_id, via) values (item, person, r.via)
+      on conflict (item_id, user_id) do nothing;
+    end if;
     saved := saved + 1;
   end loop;
 
+  update watch_list_wants w set removed_at = now()
+  from watch_list l
+  where l.id = w.item_id and l.household_id = home and l.key = any (coalesce(p_remove, '{}'))
+    and w.removed_at is null;
   update watch_list set removed_at = now()
   where household_id = home and key = any (coalesce(p_remove, '{}')) and removed_at is null;
 
@@ -345,6 +511,8 @@ grant execute on function watch_ingest (text, jsonb, text) to anon, authenticate
 grant execute on function watch_feedback_since (text, timestamptz) to anon, authenticated;
 grant execute on function watch_list_read (text) to anon, authenticated;
 grant execute on function watch_list_save (text, jsonb, text[]) to anon, authenticated;
+revoke all on function watch_list_want (uuid, jsonb) from public, anon;
+grant execute on function watch_list_want (uuid, jsonb) to authenticated;
 
 -- --- After running the above ---------------------------------------------------
 -- Run the one line in supabase/ingest-key.local.sql on the home PC (it is

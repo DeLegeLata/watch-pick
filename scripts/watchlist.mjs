@@ -1,16 +1,18 @@
 // The shared watchlist, for the daily refresh.
 //   node scripts/watchlist.mjs
-//     prints it: typed names waiting to be matched, then every title, then
-//     what's been taken off (so it isn't pulled in again).
+//     prints it: typed names waiting to be matched, then every title with who
+//     wants it, then what's been taken off (so it isn't pulled in again).
 //   node scripts/watchlist.mjs save <rows.txt> [--remove key,...] [--dry]
-//     sends the refresh's changes. --remove takes titles off by key (e.g. once
-//     they've watched them); --dry checks the file without sending.
+//     sends the refresh's changes. --remove takes titles off both lists by
+//     key (e.g. once they've watched them); --dry checks the file without
+//     sending.
 //
 // Each non-blank line of rows.txt that doesn't start with # is one title:
 //   from|title|year|kind|minutes|episodes|seasons|imdb|rt|service|plexKey|poster|note
-// - from: prime or plex for a title pulled in from that watchlist. A title
-//   already on the list keeps where it came from, so prime also does for a
-//   recheck. Or the id of a typed name, to match it to this title.
+// - from: whose watchlist it's on and where, as who:where (stuart:prime,
+//   sarah:prime, stuart:plex), which puts it on that person's list unless
+//   they took it off before; recheck, for a title already on the list whose
+//   details are being refreshed; or the id of a typed name, to match it.
 // - A typed name that can't be matched takes only its id and a note:
 //   <id>||||||||||||Couldn't find this. Try another spelling.
 // - service: prime, plex, shudder, or blank when it isn't on anything they
@@ -33,9 +35,13 @@ async function show() {
   const off = rows.filter((r) => r.removed_at);
   console.log(`Typed names to match (${typed.length}):`);
   for (const r of typed) console.log(`  ${r.id} | "${r.typed}" | ${r.who ?? '?'} ${day(r.added_at)}${r.note ? ` | ${r.note}` : ''}`);
-  console.log(`On the list (${on.length - typed.length}): service | key | title | from | checked`);
-  for (const r of on.filter((r) => r.key))
-    console.log(`  ${r.service ?? '-'} | ${r.key} | ${r.title} | ${r.source === 'app' ? (r.who ?? 'app') : r.source} | ${day(r.checked_at)}${r.note ? ` | ${r.note}` : ''}`);
+  console.log(`On the list (${on.length - typed.length}): service | key | title | wanted by | checked`);
+  for (const r of on.filter((r) => r.key)) {
+    const offFor = r.taken_off ? ` | taken off by ${r.taken_off}` : '';
+    console.log(`  ${r.service ?? '-'} | ${r.key} | ${r.title} | ${r.wants ?? '-'} | ${day(r.checked_at)}${offFor}${r.note ? ` | ${r.note}` : ''}`);
+  }
+  const both = on.filter((r) => r.wants?.includes(','));
+  console.log(`Both want (${both.length}): ${both.map((r) => r.key ?? `"${r.typed}"`).join(', ') || '-'}`);
   console.log(`Taken off (${off.length}): ${off.map((r) => r.key ?? `"${r.typed}"`).join(', ') || '-'}`);
 }
 
@@ -54,8 +60,10 @@ async function save() {
   const rows = (rowsPath ? readRows(readFileSync(rowsPath, 'utf8'), 13) : []).map((f) => {
     const [from, title, year, kind, minutes, episodes, seasons, imdb, rt, service, plexKey, art, note] = f;
     const id = ID.test(from) ? from : null;
+    const [who, via] = id || from === 'recheck' ? [null, null] : from.split(':');
     const at = title || from;
-    if (!id && !['prime', 'plex'].includes(from)) problems.push(`${at}: from must be prime, plex or a typed name's id`);
+    if (!id && from !== 'recheck' && !(['stuart', 'sarah'].includes(who) && ['prime', 'plex'].includes(via)))
+      problems.push(`${at}: from must be stuart:prime, sarah:prime, stuart:plex, recheck or a typed name's id`);
     // A typed name that couldn't be matched: only its note changes.
     if (id && !title) return { id, key: null, note: note || null };
     if (!title || !year) problems.push(`${at}: needs a title and year`);
@@ -78,7 +86,8 @@ async function save() {
       link: service ? link(service, title, plexKey) : null,
       poster: poster(art),
       note: note || null,
-      source: id ? null : from
+      who,
+      via
     };
   });
 
@@ -88,7 +97,15 @@ async function save() {
     return;
   }
 
-  const summary = `${rows.filter((r) => r.id && r.key).length} matched, ${rows.filter((r) => r.id && !r.key).length} not found, ${rows.filter((r) => !r.id).length} pulled in or rechecked, ${remove.length} taken off`;
+  const pulled = (name) => rows.filter((r) => r.who === name).length;
+  const summary = [
+    `${rows.filter((r) => r.id && r.key).length} matched`,
+    `${rows.filter((r) => r.id && !r.key).length} not found`,
+    `${pulled('stuart')} from Stuart's watchlists`,
+    `${pulled('sarah')} from Sarah's`,
+    `${rows.filter((r) => !r.id && !r.who).length} rechecked`,
+    `${remove.length} taken off`
+  ].join(', ');
   if (dry) {
     console.log(`OK, not sent (--dry): ${summary}.`);
   } else {
