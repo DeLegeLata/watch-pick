@@ -244,7 +244,9 @@ const got = await inParallel(all, 8, async (c) => {
 writeFileSync(DETAILS, JSON.stringify(details));
 
 // What Prime itself said (prime-check.js): "no" keeps a title off Prime for 60
-// days. Rechecks: "ok" after 30 days, "maybe" and "unknown" after 14.
+// days, and "maybe" ("Included with your subscriptions", which is how the
+// STARZ trial's titles show, and STARZ never counts) for 14. Rechecks: "ok"
+// after 30 days, "maybe" and "unknown" after 14.
 const CHECKS = join(CACHE, 'prime-checks.json');
 const checks = readJson(CHECKS, {});
 const RECHECK = { ok: 30, maybe: 14, unknown: 14, no: 60 };
@@ -257,7 +259,7 @@ let notOnPrime = 0;
 // One entry per title: Prime first (it's their own account), the server otherwise.
 const byTitle = new Map();
 for (const t of got.filter(Boolean)) {
-  if (t.service === 'prime' && checkFor(keyFor(t.title, t.year)) === 'no') {
+  if (t.service === 'prime' && ['no', 'maybe'].includes(checkFor(keyFor(t.title, t.year)))) {
     notOnPrime++;
     continue;
   }

@@ -8,7 +8,7 @@
 // Output: the page body becomes one line per title, read with get_page_text:
 //   key|status|what Prime says
 // status: ok (Included with Prime), maybe (included with "your
-// subscriptions", which can mean a channel trial), no (buy, rent or
+// subscriptions": the STARZ trial, kept out for now), no (buy, rent or
 // subscribe), unknown (search didn't find that title). Save the lines to a
 // file and run: node scripts/prime-results.mjs <file>
 
