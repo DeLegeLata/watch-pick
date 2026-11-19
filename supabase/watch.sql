@@ -51,9 +51,10 @@ create index if not exists watch_picks_run on watch_picks (run_id, rank);
 -- rate (added 2026-11-02): not a pick but something the refresh saw them
 -- watch, which the phones ask "How was it?" about.
 -- canon (added 2026-11-18): "Should have seen", from the daily catalogue.
+-- arrived (added 2026-11-19): a watchlist title that just became watchable.
 alter table watch_picks drop constraint if exists watch_picks_slot_check;
 alter table watch_picks add constraint watch_picks_slot_check
-check (slot in ('resume', 'safe', 'watchlist', 'canon', 'new', 'rate'));
+check (slot in ('resume', 'arrived', 'safe', 'watchlist', 'canon', 'new', 'rate'));
 
 create table if not exists watch_feedback (
   id uuid primary key default gen_random_uuid(),

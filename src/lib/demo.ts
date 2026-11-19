@@ -14,6 +14,13 @@ export const demoPicks: Pick[] = [
     why: 'Stopped at 45% last time.', rank: 0
   },
   {
+    // From Sarah's Prime watchlist; Prime confirmed "Included with Prime" on 2026-11-19.
+    key: 'the-devils-hour-2022', slot: 'arrived', title: "The Devil's Hour", year: 2022, kind: 'series',
+    minutes: 58, episodes: 11, seasons: 3, imdb: null, rt: null, service: 'prime', link: prime("The Devil's Hour"),
+    poster: 'https://image.tmdb.org/t/p/w342/mFU6ZPAs6g8Y9Eld28GULJYt3rC.jpg', moods: ['mystery'],
+    why: "On Sarah's watchlist, now on Prime (Nov 19)", rank: 1
+  },
+  {
     key: 'deep-cover-2025', slot: 'safe', title: 'Deep Cover', year: 2025, kind: 'movie', minutes: 100,
     episodes: null, seasons: null, imdb: 6.7, rt: null, service: 'prime', link: prime('Deep Cover'),
     poster: null, moods: ['laugh'], why: 'British improv-comedy cop caper: Hot Fuzz meets Friendship.', rank: 1

@@ -1,7 +1,8 @@
 // The shapes the app reads from Supabase (and the demo data uses).
 
 /** 'rate' is not a pick: it's something the refresh saw them watch, to ask "How was it?". */
-export type Slot = 'resume' | 'safe' | 'watchlist' | 'canon' | 'new' | 'rate';
+/** 'arrived': a watchlist title that has just become watchable, shown on top for a week. */
+export type Slot = 'resume' | 'arrived' | 'safe' | 'watchlist' | 'canon' | 'new' | 'rate';
 export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy' | 'scary' | 'big' | 'true';
 /** not_them: the tapper's guess that the other person wouldn't like it. */
 export type Reason = 'seen' | 'not_me' | 'not_them' | 'not_us' | 'not_tonight' | 'someone_else';
@@ -141,6 +142,7 @@ export const OPEN_LABEL: Record<Service, string> = { prime: 'Open in Prime', ple
 
 export const SLOT_LABEL: Record<Slot, string> = {
   resume: 'Pick up where you left off',
+  arrived: 'Just arrived',
   safe: 'Safe bet',
   watchlist: 'From your watchlist',
   canon: 'Should have seen',

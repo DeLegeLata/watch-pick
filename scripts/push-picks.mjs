@@ -18,7 +18,7 @@ const picks = Array.isArray(doc) ? doc : doc.picks;
 const note = Array.isArray(doc) ? null : (doc.note ?? null);
 
 // 'rate' rows aren't picks: the phones ask "How was it?" about them.
-const SLOTS = ['resume', 'safe', 'watchlist', 'canon', 'new', 'rate'];
+const SLOTS = ['resume', 'arrived', 'safe', 'watchlist', 'canon', 'new', 'rate'];
 const problems = [];
 const keys = new Set();
 picks.forEach((p, i) => {

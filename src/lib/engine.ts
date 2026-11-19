@@ -59,6 +59,8 @@ export function daySeed(now: Date): number {
 
 export interface Tonight {
   resume: Pick | null;
+  /** Watchlist titles that just became watchable: shown whatever the time or mood, until tapped away. */
+  arrived: Pick[];
   cards: Pick[];
   /** True when the mood had too few matches and other picks filled the gaps. */
   topped: boolean;
@@ -127,6 +129,7 @@ export function chooseTonight(
 
   const resumes = open.filter((p) => p.slot === 'resume' && matches(p)).sort(byRank);
   const resume = resumes.length ? resumes[page % resumes.length] : null;
+  const arrived = picks.filter((p) => p.slot === 'arrived' && !hidden.has(p.key)).sort(byRank);
 
   const rest = open.filter((p) => p.slot !== 'resume');
   const good = rest.filter(matches);
@@ -157,7 +160,7 @@ export function chooseTonight(
   const start = (page % sets) * 3;
   const cards = sequence.slice(start, start + 3);
   const topped = cards.some((c) => !matches(c));
-  return { resume, cards, topped, more: Math.max(0, sequence.length - 3) };
+  return { resume, arrived, cards, topped, more: Math.max(0, sequence.length - 3) };
 }
 
 export function runtimeLabel(p: Pick): string {

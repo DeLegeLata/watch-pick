@@ -286,3 +286,21 @@ describe('no repeats for two weeks', () => {
     expect(markShown(next!, ['b', 'c'], now)).toBeNull();
   });
 });
+
+describe('just arrived', () => {
+  const picks = [
+    pick({ title: 'a1', slot: 'arrived', rank: 1, minutes: 170 }),
+    pick({ title: 'a2', slot: 'arrived', rank: 2 }),
+    pick({ title: 's1', slot: 'safe', rank: 1 })
+  ];
+
+  it('shows arrivals on top whatever the time or mood, and never deals them as cards', () => {
+    const t = chooseTonight(picks, new Set(), 45, 'scary');
+    expect(t.arrived.map((p) => p.title)).toEqual(['a1', 'a2']);
+    expect(chooseTonight(picks, new Set(), 90, 'any').cards.map((c) => c.title)).toEqual(['s1']);
+  });
+
+  it('drops an arrival once it is tapped away', () => {
+    expect(chooseTonight(picks, new Set(['a1']), 90, 'any').arrived.map((p) => p.title)).toEqual(['a2']);
+  });
+});

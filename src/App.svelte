@@ -303,6 +303,9 @@
       {#if tonight.resume}
         <PickCard pick={tonight.resume} onreject={(p) => (rejecting = p)} />
       {/if}
+      {#each tonight.arrived as a (a.key)}
+        <PickCard pick={a} saved={mine.has(a.key)} onreject={(p) => (rejecting = p)} onsave={snap?.listReady === false ? undefined : toggleSave} />
+      {/each}
       {#each tonight.cards as c (c.key)}
         <PickCard pick={c} saved={mine.has(c.key)} onreject={(p) => (rejecting = p)} onsave={snap?.listReady === false ? undefined : toggleSave} />
       {:else}
