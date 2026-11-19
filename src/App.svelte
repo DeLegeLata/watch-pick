@@ -8,7 +8,7 @@
   import WatchList from './lib/components/WatchList.svelte';
   import { addFeedback, cached, forget, fromPick, load, newItem, setWanted, undoFeedback, want, type Snapshot } from './lib/data';
   import { demoList, demoNames, demoPicks, demoRun } from './lib/demo';
-  import { ago, chooseTonight, daySeed, hiddenKeys, otherName, shownList, toRate } from './lib/engine';
+  import { ago, chooseTonight, hiddenKeys, markShown, otherName, recentKeys, shownList, toRate } from './lib/engine';
   import {
     MOODS,
     RATINGS,
@@ -50,11 +50,22 @@
   let windowIndex = $state(Number(saved('watch-pick:window', '1')));
   let mood = $state<Mood | 'any'>(saved('watch-pick:mood', 'any') as Mood | 'any');
   let page = $state(0);
-  // The order changes each day by itself; Shuffle swaps in a random one until
-  // "Back to today's picks".
+  // Best first, and each day the next best: cards this phone showed on an
+  // earlier day wait at the back for two weeks. Shuffle swaps in a random
+  // order until "Back to today's picks".
   let shuffled = $state(0);
   let now = $state(new Date());
-  const seed = $derived(shuffled || daySeed(now));
+  const seed = $derived(shuffled);
+  let shown = $state<Record<string, string>>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem('watch-pick:shown') ?? '{}');
+      } catch {
+        return {};
+      }
+    })()
+  );
+  const recent = $derived(recentKeys(shown, now));
 
   $effect(() => {
     try {
@@ -68,7 +79,20 @@
 
   const minutes = $derived(WINDOWS[windowIndex]?.minutes ?? 90);
   const hidden = $derived(hiddenKeys(snap?.feedback ?? [], now));
-  const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page, seed));
+  const tonight = $derived(chooseTonight(snap?.picks ?? [], hidden, minutes, mood, page, seed, recent));
+
+  // Remember what this phone has put in front of them, for the two-week rule.
+  $effect(() => {
+    if (view !== 'tonight' || !snap?.run) return;
+    const next = markShown(shown, tonight.cards.map((c) => c.key), now);
+    if (!next) return;
+    shown = next;
+    try {
+      localStorage.setItem('watch-pick:shown', JSON.stringify(next));
+    } catch {
+      // Without storage every day starts from the best again; that's fine.
+    }
+  });
   const stale = $derived(snap?.run ? Date.now() - Date.parse(snap.run.ran_at) > 3 * 86_400_000 : false);
   const me = $derived(demo ? 'demo' : (session?.user.id ?? ''));
   const unrated = $derived(toRate(snap?.feedback ?? [], me, snap?.picks ?? []));
@@ -78,7 +102,15 @@
     new Map((snap?.list ?? []).filter((l) => l.key && l.wants.some((w) => w.user_id === me)).map((l) => [l.key!, l]))
   );
   const other = $derived(otherName(snap?.names ?? {}, me));
-  const MOOD_WORD: Record<Mood, string> = { laugh: 'funny', tense: 'tense', mystery: 'mystery', cozy: 'cozy' };
+  const MOOD_WORD: Record<Mood, string> = {
+    laugh: 'funny',
+    tense: 'tense',
+    mystery: 'mystery',
+    cozy: 'cozy',
+    scary: 'scary',
+    big: 'big-night',
+    true: 'documentary'
+  };
   const moodLabel = $derived(mood === 'any' ? '' : MOOD_WORD[mood]);
 
   async function refresh() {
@@ -290,13 +322,17 @@
       {/if}
     {/if}
 
+    <p class="muted small credit">
+      Titles and posters from TMDB; this app uses the TMDB API but is not endorsed or certified by TMDB. Where to watch:
+      JustWatch. Ratings: IMDb.
+    </p>
     {#if !demo}
       <footer><button class="link" onclick={leave}>Sign out</button></footer>
     {/if}
   {/if}
 </main>
 
-<ReasonSheet pick={rejecting} onchoose={reject} oncancel={() => (rejecting = null)} />
+<ReasonSheet pick={rejecting} {other} onchoose={reject} oncancel={() => (rejecting = null)} />
 
 {#if toast}
   <div class="toast" role="status">

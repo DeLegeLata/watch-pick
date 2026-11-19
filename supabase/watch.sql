@@ -50,9 +50,10 @@ create index if not exists watch_picks_run on watch_picks (run_id, rank);
 
 -- rate (added 2026-11-02): not a pick but something the refresh saw them
 -- watch, which the phones ask "How was it?" about.
+-- canon (added 2026-11-18): "Should have seen", from the daily catalogue.
 alter table watch_picks drop constraint if exists watch_picks_slot_check;
 alter table watch_picks add constraint watch_picks_slot_check
-check (slot in ('resume', 'safe', 'watchlist', 'new', 'rate'));
+check (slot in ('resume', 'safe', 'watchlist', 'canon', 'new', 'rate'));
 
 create table if not exists watch_feedback (
   id uuid primary key default gen_random_uuid(),
@@ -72,9 +73,11 @@ alter table watch_feedback add column if not exists rating smallint check (ratin
 
 -- someone_else (added 2026-11-02): a "pick up where you left off" card whose
 -- progress was someone else's on the shared account, not theirs.
+-- not_them (added 2026-11-18): the tapper's guess that the other person
+-- wouldn't like it ("Not for Sarah" on Stuart's phone).
 alter table watch_feedback drop constraint if exists watch_feedback_reason_check;
 alter table watch_feedback add constraint watch_feedback_reason_check
-check (reason in ('seen', 'not_me', 'not_us', 'not_tonight', 'someone_else'));
+check (reason in ('seen', 'not_me', 'not_them', 'not_us', 'not_tonight', 'someone_else'));
 
 create table if not exists watch_ingest_keys (
   household_id uuid primary key references households (id) on delete cascade,

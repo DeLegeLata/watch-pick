@@ -5,13 +5,18 @@
 
   let {
     pick,
+    other,
     onchoose,
     oncancel
   }: {
     pick: Pick | null;
+    /** The other person's name, for "Not for Sarah". */
+    other?: string;
     onchoose: (p: Pick, r: Reason, rating: number | null) => void;
     oncancel: () => void;
   } = $props();
+
+  const named = (text: string, fallback: string) => text.replaceAll('{other}', other ?? fallback);
 
   let dialog: HTMLDialogElement;
   // "We've seen it" opens a second step that asks how it was.
@@ -40,8 +45,8 @@
     <div class="reasons">
       {#each REASONS.filter((r) => !r.resume || pick.slot === 'resume') as r (r.id)}
         <button onclick={() => (r.id === 'seen' ? (rating = true) : onchoose(pick, r.id, null))}>
-          <strong>{r.label}</strong>
-          <span class="muted">{r.hint}</span>
+          <strong>{named(r.label, 'the other person')}</strong>
+          <span class="muted">{named(r.hint, 'they')}</span>
         </button>
       {/each}
     </div>

@@ -477,3 +477,10 @@ footer {
   display: block;
   margin: 8px auto 0;
 }
+
+/* TMDB asks every app that uses its data to say so. */
+.credit {
+  margin: 1.5rem 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+}

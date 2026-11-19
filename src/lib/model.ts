@@ -1,9 +1,10 @@
 // The shapes the app reads from Supabase (and the demo data uses).
 
 /** 'rate' is not a pick: it's something the refresh saw them watch, to ask "How was it?". */
-export type Slot = 'resume' | 'safe' | 'watchlist' | 'new' | 'rate';
-export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy';
-export type Reason = 'seen' | 'not_me' | 'not_us' | 'not_tonight' | 'someone_else';
+export type Slot = 'resume' | 'safe' | 'watchlist' | 'canon' | 'new' | 'rate';
+export type Mood = 'laugh' | 'tense' | 'mystery' | 'cozy' | 'scary' | 'big' | 'true';
+/** not_them: the tapper's guess that the other person wouldn't like it. */
+export type Reason = 'seen' | 'not_me' | 'not_them' | 'not_us' | 'not_tonight' | 'someone_else';
 export type Service = 'prime' | 'plex' | 'shudder';
 
 export interface Pick {
@@ -98,7 +99,10 @@ export const MOODS: { id: Mood | 'any'; label: string }[] = [
   { id: 'laugh', label: 'A laugh' },
   { id: 'tense', label: 'Tense' },
   { id: 'mystery', label: 'Mystery' },
-  { id: 'cozy', label: 'Cozy' }
+  { id: 'cozy', label: 'Cozy' },
+  { id: 'scary', label: 'Scary' },
+  { id: 'big', label: 'Big night' },
+  { id: 'true', label: 'Docs' }
 ];
 
 /** Minutes they have; Infinity is "2 h or more". */
@@ -118,6 +122,8 @@ export const REASONS: { id: Reason; label: string; hint: string; resume?: boolea
   },
   { id: 'not_us', label: 'Not for us', hint: 'Neither of us wants this' },
   { id: 'not_me', label: 'Not for me', hint: 'I would not enjoy it' },
+  // The sheet puts the other person's name in: "Not for Sarah" on Stuart's phone.
+  { id: 'not_them', label: 'Not for {other}', hint: "I don't think {other} would like it" },
   { id: 'seen', label: "We've seen it", hint: 'Already watched it' },
   { id: 'not_tonight', label: 'Not tonight', hint: 'Hide it until tomorrow' }
 ];
@@ -137,6 +143,7 @@ export const SLOT_LABEL: Record<Slot, string> = {
   resume: 'Pick up where you left off',
   safe: 'Safe bet',
   watchlist: 'From your watchlist',
+  canon: 'Should have seen',
   new: 'Something new',
   rate: 'How was it?'
 };

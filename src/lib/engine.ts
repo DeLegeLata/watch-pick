@@ -17,8 +17,9 @@ export function localDate(d: Date): string {
 }
 
 /**
- * Titles to hide. Any "seen", "not for me" or "not for us" from either phone
- * hides a title for both, because every pick is meant for the two of them.
+ * Titles to hide. Any "seen", "not for me", "not for <the other>" or "not for
+ * us" from either phone hides a title for both, because every pick is meant
+ * for the two of them.
  * "Not tonight" hides it only on the day it was tapped.
  */
 export function hiddenKeys(feedback: Feedback[], now: Date): Set<string> {
@@ -65,7 +66,32 @@ export interface Tonight {
   more: number;
 }
 
-const ORDER: Slot[] = ['safe', 'watchlist', 'new'];
+const ORDER: Slot[] = ['safe', 'watchlist', 'canon', 'new'];
+
+/** How long a card this phone has shown stays at the back of the queue. */
+export const RECENT_DAYS = 14;
+
+/** Cards this phone showed on an earlier day in the last two weeks. Today's stay put, so the cards hold still all day. */
+export function recentKeys(shown: Record<string, string>, now: Date, days = RECENT_DAYS): Set<string> {
+  const today = localDate(now);
+  const cutoff = localDate(new Date(now.getTime() - days * 86_400_000));
+  return new Set(Object.entries(shown).filter(([, d]) => d < today && d >= cutoff).map(([k]) => k));
+}
+
+/** Records today's cards, and forgets anything shown before the window. Returns null when nothing changed. */
+export function markShown(shown: Record<string, string>, keys: string[], now: Date, days = RECENT_DAYS): Record<string, string> | null {
+  const today = localDate(now);
+  const cutoff = localDate(new Date(now.getTime() - days * 86_400_000));
+  const next = Object.fromEntries(Object.entries(shown).filter(([, d]) => d >= cutoff));
+  let changed = Object.keys(next).length !== Object.keys(shown).length;
+  for (const k of keys) {
+    if (next[k] !== today) {
+      next[k] = today;
+      changed = true;
+    }
+  }
+  return changed ? next : null;
+}
 
 /** A small seeded random generator (mulberry32), so a shuffle holds still while you look at it. */
 function seeded(seed: number) {
@@ -79,9 +105,11 @@ function seeded(seed: number) {
 
 /**
  * Tonight's resume card and three cards. Each card prefers its own slot (safe
- * bet, watchlist, something new); mood matches come first; `page` cycles to
- * the next three. A non-zero `seed` shuffles each slot instead of using the
- * refresh's ranking. The resume card goes by rank (the most recently watched
+ * bet, watchlist, should have seen, something new); mood matches come first;
+ * `page` cycles to the next three. Each slot goes best first (the refresh's
+ * ranking), with anything in `recent` (shown on an earlier day) moved to the
+ * back, so each day brings the next best. A non-zero `seed` shuffles each
+ * slot instead. The resume card goes by rank (the most recently watched
  * first), and `page` steps through the others.
  */
 export function chooseTonight(
@@ -90,7 +118,8 @@ export function chooseTonight(
   windowMinutes: number,
   mood: Mood | 'any',
   page = 0,
-  seed = 0
+  seed = 0,
+  recent: Set<string> = new Set()
 ): Tonight {
   const open = picks.filter((p) => !hidden.has(p.key) && fits(p, windowMinutes));
   const byRank = (a: Pick, b: Pick) => a.rank - b.rank;
@@ -107,13 +136,14 @@ export function chooseTonight(
   // slots, then the rest after them.
   const order = (list: Pick[], salt: number) => {
     const out = [...list].sort(byRank);
-    if (!seed) return out;
-    const rand = seeded(seed + salt * 7919);
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
+    if (seed) {
+      const rand = seeded(seed + salt * 7919);
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
     }
-    return out;
+    return [...out.filter((p) => !recent.has(p.key)), ...out.filter((p) => recent.has(p.key))];
   };
   const deal = (list: Pick[]) => {
     const queues = ORDER.map((s, i) => order(list.filter((p) => p.slot === s), i));

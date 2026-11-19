@@ -13,7 +13,9 @@
     "new-key": "node scripts/new-ingest-key.mjs",
     "push": "node scripts/push-picks.mjs",
     "feedback": "node scripts/feedback.mjs",
-    "list": "node scripts/watchlist.mjs"
+    "list": "node scripts/watchlist.mjs",
+    "daily": "node scripts/catalogue.mjs",
+    "tmdb-key": "node scripts/set-tmdb-key.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",

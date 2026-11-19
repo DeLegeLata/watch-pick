@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, chooseTonight, daySeed, fits, hiddenKeys, inView, listMeta, otherName, runtimeLabel, shownList, toRate, wantLabel } from './engine';
+import { ago, chooseTonight, daySeed, fits, hiddenKeys, inView, listMeta, markShown, otherName, recentKeys, runtimeLabel, shownList, toRate, wantLabel } from './engine';
 import type { Feedback, ListItem, Pick, Want, Whose } from './model';
 
 const pick = (over: Partial<Pick>): Pick => ({
@@ -252,5 +252,37 @@ describe('the shared watchlist', () => {
     expect(label(want('her', 'prime'))).toBe("From Sarah's Prime watchlist");
     expect(label(want('me', 'plex'))).toBe('From the Plex watchlist');
     expect(label(want('me'), want('her', 'prime'))).toBe('You both want this');
+  });
+});
+
+describe('no repeats for two weeks', () => {
+  const now = new Date(2026, 10, 18, 20);
+  const picks = [
+    pick({ title: 's1', slot: 'safe', rank: 1 }),
+    pick({ title: 's2', slot: 'safe', rank: 2 }),
+    pick({ title: 'c1', slot: 'canon', rank: 1 }),
+    pick({ title: 'c2', slot: 'canon', rank: 2 }),
+    pick({ title: 'n1', slot: 'new', rank: 1 }),
+    pick({ title: 'n2', slot: 'new', rank: 2 })
+  ];
+
+  it('deals best first, one per slot', () => {
+    expect(chooseTonight(picks, new Set(), 90, 'any').cards.map((c) => c.title)).toEqual(['s1', 'c1', 'n1']);
+  });
+
+  it('moves cards shown on an earlier day to the back', () => {
+    const shown = { s1: '2026-11-17', c1: '2026-11-17', n1: '2026-11-10' };
+    const recent = recentKeys(shown, now);
+    expect(chooseTonight(picks, new Set(), 90, 'any', 0, 0, recent).cards.map((c) => c.title)).toEqual(['s2', 'c2', 'n2']);
+  });
+
+  it("keeps today's cards where they are, and forgets after 14 days", () => {
+    expect([...recentKeys({ a: '2026-11-18', b: '2026-11-17', c: '2026-11-03' }, now)]).toEqual(['b']);
+  });
+
+  it('records shown cards once a day and drops old ones', () => {
+    const next = markShown({ old: '2026-10-01', b: '2026-11-17' }, ['b', 'c'], now);
+    expect(next).toEqual({ b: '2026-11-18', c: '2026-11-18' });
+    expect(markShown(next!, ['b', 'c'], now)).toBeNull();
   });
 });

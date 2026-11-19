@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { rpc } from './env.mjs';
+import { MOODS } from './rank.mjs';
 
 const DEFAULT = join(homedir(), 'Documents', 'General Issues', 'Watching', 'picks.json');
 const args = process.argv.slice(2);
@@ -17,8 +18,7 @@ const picks = Array.isArray(doc) ? doc : doc.picks;
 const note = Array.isArray(doc) ? null : (doc.note ?? null);
 
 // 'rate' rows aren't picks: the phones ask "How was it?" about them.
-const SLOTS = ['resume', 'safe', 'watchlist', 'new', 'rate'];
-const MOODS = ['laugh', 'tense', 'mystery', 'cozy'];
+const SLOTS = ['resume', 'safe', 'watchlist', 'canon', 'new', 'rate'];
 const problems = [];
 const keys = new Set();
 picks.forEach((p, i) => {
