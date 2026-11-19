@@ -33,6 +33,9 @@ describe('the floor', () => {
     expect(passes(title({ language: 'hi', votes: 60_000 }), taste)).toBe(false);
     expect(passes(title({ language: 'ko', votes: 900_000 }), taste)).toBe(true);
   });
+  it('never takes a language they ruled out, however popular', () => {
+    expect(passes(title({ language: 'pa', votes: 2_000_000 }), { ...taste, excludeLanguages: ['pa'] })).toBe(false);
+  });
   it('drops reality, kids and talk shows', () => {
     expect(passes(title({ kind: 'series', genres: ['Reality'] }), taste)).toBe(false);
   });

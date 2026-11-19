@@ -64,6 +64,7 @@ export function passes(t, taste) {
   if (t.imdb == null || t.imdb < f.imdb || t.votes < f.votes) return false;
   if (!(t.minutes > 0)) return false;
   if (t.genres.some((g) => taste.exclude.includes(g))) return false;
+  if (t.language && (taste.excludeLanguages ?? []).includes(t.language)) return false;
   if (t.language && t.language !== 'en' && t.votes < f.foreignVotes) return false;
   return true;
 }
